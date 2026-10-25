@@ -1,0 +1,806 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Étiquettes Mondial Relay</title>
+<style>
+  :root {
+    --bg: #F5F5F7; --carte: #FFFFFF; --txt: #1D1D1F; --sec: #6E6E73; --ter: #AEAEB2; --sep: rgba(60,60,67,.12);
+    --champ: #F2F2F7; --bord: #D9D9DE;
+    --accent: #0071E3; --accent-h: #0A7AEE; --accent-halo: rgba(0,113,227,.22);
+    --rouge: #D70015; --rouge-bg: #FCE8E8; --orange: #B85300; --orange-bg: #FFF1E0; --vert: #1E8A3F; --vert-bg: #E6F5EA;
+    --r: 12px; --ombre: 0 1px 2px rgba(0,0,0,.05), 0 0 0 .5px rgba(0,0,0,.07);
+    --ombre-feuille: 0 24px 64px rgba(0,0,0,.28), 0 0 0 .5px rgba(0,0,0,.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg); color: var(--txt);
+    font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; user-select: none; cursor: default;
+    display: flex; flex-direction: column;
+  }
+  input, button { font: inherit; color: inherit; }
+  button { cursor: default; }
+  .cache { display: none !important; }
+
+  /* ---------- barre de titre (boutons Windows à droite) ---------- */
+  .barre { position: relative; height: 50px; flex: none; display: flex; align-items: center; background: var(--carte); border-bottom: .5px solid var(--sep); }
+  .barre .zone { position: absolute; inset: 0; }
+  .barre > :not(.zone) { position: relative; z-index: 1; }
+  .appli { display: flex; align-items: center; gap: 10px; padding: 0 16px; font-weight: 600; font-size: 14px; pointer-events: none; }
+  .appli .logo { width: 24px; height: 24px; border-radius: 7px; background: var(--accent); display: grid; place-items: center; }
+  .appli .logo svg { width: 15px; height: 15px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .segments { position: absolute; left: 50%; transform: translateX(-50%); display: flex; padding: 3px; border-radius: 10px; background: #EFEFF2; }
+  .segments button { height: 30px; padding: 0 16px; border: 0; border-radius: 8px; background: transparent; font-weight: 500; color: var(--sec); display: inline-flex; align-items: center; gap: 7px; transition: background .12s, color .12s; }
+  .segments button:hover { color: var(--txt); }
+  .segments button.actif { background: var(--carte); color: var(--txt); box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 .5px rgba(0,0,0,.05); }
+  .segments .point { width: 7px; height: 7px; border-radius: 50%; background: var(--ter); }
+  .segments .point.prod { background: var(--rouge); } .segments .point.simu { background: #F09000; }
+  .droite { margin-left: auto; display: flex; align-items: center; height: 100%; }
+  .h1-ligne { display: flex; align-items: center; gap: 12px; }
+  .pastille { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 11px 0 9px; border-radius: 13px; font-size: 12.5px; font-weight: 600; white-space: nowrap; margin-top: 4px; }
+  .pastille::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .pastille.prod { background: var(--rouge-bg); color: var(--rouge); }
+  .pastille.simu { background: var(--orange-bg); color: var(--orange); }
+  .pastille.attente { background: #EBEBEF; color: var(--sec); }
+  .fenetre-boutons { display: flex; height: 100%; }
+  .fenetre-boutons button { width: 46px; height: 100%; border: 0; background: transparent; color: var(--txt); display: grid; place-items: center; transition: background .1s; }
+  .fenetre-boutons button:hover { background: rgba(0,0,0,.06); }
+  .fenetre-boutons button.fermer:hover { background: #C42B1C; color: #fff; }
+  .fenetre-boutons svg { width: 10px; height: 10px; stroke: currentColor; stroke-width: 1; fill: none; }
+
+  /* ---------- écran ---------- */
+  .ecran { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 4px 28px 0; width: 100%; max-width: 1360px; margin: 0 auto; }
+  .entete { display: flex; align-items: flex-end; gap: 16px; padding: 6px 0 16px; }
+  .entete h1 { margin: 0; font: 600 28px/1.15 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; letter-spacing: -.02em; }
+  .entete p { margin: 4px 0 0; color: var(--sec); font-size: 14px; }
+  .entete .actions { margin-left: auto; display: flex; gap: 8px; padding-bottom: 2px; }
+
+  .btn {
+    height: 34px; padding: 0 14px; border-radius: 9px; border: 0; background: var(--carte); box-shadow: var(--ombre);
+    font-weight: 500; display: inline-flex; align-items: center; gap: 7px; transition: background .12s, transform .06s;
+  }
+  .btn:hover { background: #FAFAFC; } .btn:active { transform: scale(.985); background: #F0F0F3; }
+  .btn:disabled { opacity: .45; pointer-events: none; }
+  .btn.principal { height: 40px; padding: 0 20px; border-radius: 11px; background: var(--accent); color: #fff; font-weight: 600; font-size: 15px; box-shadow: none; }
+  .btn.principal:hover { background: var(--accent-h); } .btn.principal:active { background: #0066CC; }
+  .btn.danger { background: var(--rouge); color: #fff; box-shadow: none; } .btn.danger:hover { background: #E8101F; }
+  .btn.texte { background: transparent; box-shadow: none; color: var(--accent); padding: 0 8px; height: 30px; }
+  .btn.texte:hover { background: rgba(0,113,227,.08); }
+  .btn:focus-visible, input:focus-visible { outline: 3px solid var(--accent-halo); outline-offset: 1px; }
+  .btn svg { width: 15px; height: 15px; }
+
+  /* ---------- liste des colis ---------- */
+  .carte { background: var(--carte); border-radius: var(--r); box-shadow: var(--ombre); }
+  .liste { flex: 1; min-height: 0; overflow: auto; }
+  .ligne, .tete {
+    display: grid; grid-template-columns: 34px 92px 1fr 1.9fr 92px 136px; align-items: center; gap: 12px; padding: 0 18px;
+  }
+  .tete { height: 36px; font-size: 12px; font-weight: 600; color: var(--sec); position: sticky; top: 0; background: var(--carte); z-index: 1; border-bottom: .5px solid var(--sep); border-radius: var(--r) var(--r) 0 0; }
+  .ligne { min-height: 58px; border-top: .5px solid var(--sep); transition: background .12s; }
+  .ligne:first-of-type { border-top: 0; }
+  .ligne:hover { background: #FAFAFC; }
+  .ligne.exclu > :not(.coche) { opacity: .4; }
+  .ligne.exclu .relais { cursor: default; } .ligne.exclu .relais:hover { background: transparent; color: var(--sec); } .ligne.exclu .relais .crayon { visibility: hidden; }
+  .ligne.exclu .poids { background: transparent; border-color: var(--sep); } .ligne.exclu .poids input { cursor: default; }
+  .ligne .cmd { font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
+  .ligne .client { font-size: 14.5px; }
+  .ligne .relais { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; justify-self: start; color: var(--sec); cursor: pointer; padding: 6px 10px; margin: -6px -10px; border-radius: 9px; transition: background .12s, color .12s; }
+  .ligne .relais:hover, .ligne .relais:focus-visible { background: var(--champ); color: var(--txt); outline: 0; }
+  .ligne .relais .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ligne .relais .crayon { width: 16px; height: 16px; flex: none; color: var(--ter); transition: color .12s; }
+  .ligne .relais:hover .crayon, .ligne .relais:focus-visible .crayon { color: var(--accent); }
+  .num { font-family: "Cascadia Mono", Consolas, monospace; font-size: 12.5px; background: var(--champ); padding: 3px 7px; border-radius: 6px; color: var(--txt); flex: none; }
+  .num.change { background: var(--orange-bg); color: var(--orange); }
+  .vide { padding: 48px 24px; text-align: center; color: var(--sec); }
+  .vide b { display: block; color: var(--txt); font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+
+  .coche { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid #C7C7CC; background: #fff; display: grid; place-items: center; padding: 0; transition: background .12s, border-color .12s; }
+  .coche.on { background: var(--accent); border-color: var(--accent); }
+  .coche svg { width: 12px; height: 12px; stroke: #fff; stroke-width: 2.6; fill: none; opacity: 0; }
+  .coche.on svg { opacity: 1; }
+
+  .poids { display: flex; align-items: center; width: 122px; height: 38px; border-radius: 10px; background: var(--champ); border: 1.5px solid transparent; padding: 0 11px 0 6px; transition: border-color .12s, box-shadow .12s, background .12s; }
+  .poids:focus-within { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 3.5px var(--accent-halo); }
+  .poids.faute { background: var(--rouge-bg); border-color: var(--rouge); }
+  .poids input { flex: 1; min-width: 0; border: 0; background: transparent; outline: 0; text-align: right; font-size: 18px; font-weight: 500; font-variant-numeric: tabular-nums; padding: 0 6px 0 0; }
+  .poids span { color: var(--sec); font-size: 13px; font-weight: 500; }
+
+  .refus { margin-top: 12px; display: flex; gap: 10px; padding: 11px 16px; background: var(--orange-bg); color: var(--orange); border-radius: 10px; font-size: 13.5px; line-height: 1.5; }
+  .refus b { font-weight: 600; }
+  .refus::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; margin-top: 6px; flex: none; }
+
+  .pied { flex: none; display: flex; align-items: center; gap: 14px; padding: 16px 0 22px; }
+  .pied .etat { color: var(--sec); display: flex; align-items: center; gap: 10px; }
+  .pied .btn.principal { margin-left: auto; }
+  .rouage { width: 16px; height: 16px; border: 2px solid var(--sep); border-top-color: var(--accent); border-radius: 50%; animation: tourne .8s linear infinite; }
+  @keyframes tourne { to { transform: rotate(360deg); } }
+
+  /* ---------- historique ---------- */
+  .historique { padding-bottom: 4px; }
+  .creation { background: var(--carte); border-radius: var(--r); box-shadow: var(--ombre); margin-bottom: 14px; }
+  .creation .tete-c { display: flex; align-items: center; gap: 12px; padding: 12px 18px; }
+  .creation .tete-c .quand { font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
+  .creation .tete-c .combien { color: var(--sec); }
+  .creation .tete-c .btn { margin-left: auto; height: 32px; } .creation .tete-c .btn + .btn { margin-left: 0; }
+  .creation .ligne-c { display: grid; grid-template-columns: 92px 1fr 130px 220px 90px; gap: 12px; align-items: center; padding: 7px 18px; border-top: .5px solid var(--sep); font-size: 13.5px; }
+
+  /* ---------- grille tarifaire ---------- */
+  .outils-grille { display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; margin-bottom: 12px; align-items: stretch; }
+  .depot { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1.5px dashed #C7C7CC; border-radius: 12px; color: var(--sec); font-size: 13px; line-height: 1.4; cursor: pointer; transition: background .12s, border-color .12s, color .12s; }
+  .depot:hover, .depot:focus-visible { background: var(--carte); border-color: var(--accent); outline: 0; }
+  #ecran-tarifs.survol .depot { background: rgba(0,113,227,.08); border-color: var(--accent); color: var(--accent); border-style: solid; }
+  .depot svg { width: 22px; height: 22px; flex: none; }
+  .depot b { color: var(--txt); font-weight: 600; } .depot u { text-decoration-color: var(--ter); }
+  .publique { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .publique .entree { height: 34px; width: auto; }
+  .note-grille { color: var(--sec); font-size: 12.5px; flex-basis: 100%; }
+  .date-grille { display: flex; align-items: center; gap: 10px; color: var(--sec); font-size: 13.5px; white-space: nowrap; }
+  .date-grille .entree { width: 160px; height: 34px; }
+  .tete-t, .ligne-t { display: grid; gap: 10px; align-items: center; padding: 0 18px; }
+  .ligne-t { min-height: 40px; border-top: .5px solid var(--sep); }
+  .ligne-t .tranche-t { max-width: 120px; } .ligne-t .tranche-t input { font-weight: 600; }
+  .ligne-t .suppr-t { height: 26px; padding: 0 8px; color: var(--ter); font-size: 16px; } .ligne-t .suppr-t:hover { color: var(--rouge); background: var(--rouge-bg); }
+  .ligne-t.ajout-t { display: flex; min-height: 40px; }
+  .prix-t { display: flex; align-items: center; height: 32px; border-radius: 8px; background: var(--champ); border: 1.5px solid transparent; padding: 0 8px 0 4px; max-width: 110px; transition: border-color .12s, box-shadow .12s, background .12s; }
+  .prix-t:focus-within { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-halo); }
+  .prix-t input { flex: 1; min-width: 0; border: 0; background: transparent; outline: 0; text-align: right; font-size: 14px; font-variant-numeric: tabular-nums; padding: 0 4px 0 0; }
+  .prix-t input::placeholder { color: var(--ter); }
+  .prix-t span { color: var(--sec); font-size: 12.5px; }
+  .feuille .recap div.avec-prix { grid-template-columns: 72px 1fr 64px 84px 92px; }
+  .feuille .recap .inconnu { color: var(--ter); font-style: italic; }
+  .feuille .recap div.total { color: var(--sec); font-weight: 600; }
+  .feuille .recap div.entete-recap { font-size: 11.5px; color: var(--sec); padding: 6px 0 2px; border-top: 0; }
+  .ligne .facture { color: var(--sec); font-variant-numeric: tabular-nums; }
+  .creation .ligne-c .cmd { font-weight: 600; }
+  .creation .ligne-c .colis { font-family: "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
+  .creation .ligne-c .btn.texte { justify-self: end; height: 26px; font-size: 13px; }
+
+  /* ---------- feuilles (dialogues dans la fenêtre) ---------- */
+  .voile { position: fixed; inset: 0; background: rgba(20,20,24,.32); backdrop-filter: blur(6px); display: flex; justify-content: center; align-items: center; padding: 24px; z-index: 10; animation: fondu .16s ease-out; }
+  .feuille { width: min(560px, 100%); max-height: 100%; overflow: auto; background: var(--carte); border-radius: 18px; box-shadow: var(--ombre-feuille); padding: 26px 30px 24px; animation: surgit .2s cubic-bezier(.2,.8,.2,1); }
+  .feuille h2 { margin: 0 0 6px; font: 600 21px/1.2 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; letter-spacing: -.015em; }
+  .feuille p { margin: 0 0 14px; color: var(--sec); }
+  .feuille .recap { margin: 14px 0; border-radius: 10px; background: var(--champ); padding: 4px 14px; }
+  .feuille .recap div { display: grid; grid-template-columns: 90px 1fr 80px; gap: 12px; padding: 8px 0; border-top: .5px solid var(--sep); font-variant-numeric: tabular-nums; }
+  .feuille .recap div:first-child { border-top: 0; }
+  .feuille .recap .ok { color: var(--vert); } .feuille .recap .ko { color: var(--rouge); }
+  .feuille .avert { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 10px; font-weight: 600; }
+  .feuille .avert.prod { background: var(--rouge-bg); color: var(--rouge); } .feuille .avert.simu { background: var(--orange-bg); color: var(--orange); }
+  .feuille .boutons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+  .feuille .entree { width: 100%; }
+  .feuille .erreur { color: var(--rouge); font-size: 13px; margin-top: 8px; min-height: 18px; }
+  .feuille pre { margin: 0; font: inherit; white-space: pre-wrap; }
+  @keyframes surgit { from { transform: scale(.96); opacity: 0; } }
+  @keyframes fondu { from { opacity: 0; } }
+
+  /* ---------- réglages ---------- */
+  .reglages .entete { padding-bottom: 12px; }
+  .reglages .colonnes { flex: none; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+  .groupe h3 { margin: 0 0 8px 14px; font-size: 13px; font-weight: 600; color: var(--sec); }
+  .champ { display: grid; grid-template-columns: 172px 1fr; align-items: center; gap: 12px; padding: 4px 14px; border-top: .5px solid var(--sep); }
+  .champ:first-of-type { border-top: 0; }
+  .champ label { font-weight: 500; font-size: 13.5px; white-space: nowrap; }
+  .entree { height: 32px; border-radius: 9px; border: 1.5px solid var(--bord); padding: 0 11px; background: #fff; width: 100%; transition: border-color .12s, box-shadow .12s; }
+  .entree::placeholder { color: var(--ter); }
+  .entree:not(:focus) { text-overflow: ellipsis; }  /* « … » quand le contenu dépasse la largeur du champ */
+  .entree:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3.5px var(--accent-halo); }
+  .entree.faute { border-color: var(--rouge); background: var(--rouge-bg); }
+  .secret { position: relative; }
+  .secret .entree { padding-right: 40px; font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; letter-spacing: .04em; }
+  .secret button { position: absolute; right: 6px; top: 6px; height: 24px; width: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--sec); display: grid; place-items: center; }
+  .secret button:hover { background: var(--champ); }
+  .secret button svg { width: 16px; height: 16px; }
+  select.entree { appearance: auto; }
+  input[type="date"].entree { font-variant-numeric: tabular-nums; }
+  input[type="date"].entree::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .55; } input[type="date"].entree::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+  .resultats { flex: 1; min-height: 44px; margin-top: 14px; padding: 7px 16px; overflow: auto; }
+  .resultats div { display: flex; gap: 10px; align-items: flex-start; padding: 3px 0; font-size: 13.5px; line-height: 1.45; }
+  .resultats div::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: var(--ter); }
+  .resultats div.ok::before { background: var(--vert); } .resultats div.ko::before { background: var(--rouge); }
+  .resultats div.aide::before { background: var(--accent); }
+  .resultats div.ok { color: var(--txt); } .resultats div.ko { color: var(--rouge); } .resultats div.info, .resultats div.aide { color: var(--sec); }
+  .resultats div.bienvenue::before { background: var(--vert); } .resultats div.bienvenue { color: var(--vert); font-weight: 500; }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.3); border: 3px solid transparent; background-clip: padding-box; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="barre">
+  <div class="zone pywebview-drag-region" ondblclick="api('agrandir')"></div>
+  <div class="appli">
+    <div class="logo"><svg viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg></div>
+    <span>Étiquettes Mondial Relay</span>
+  </div>
+  <div class="segments" id="segments">
+    <button class="actif" id="seg-colis" onclick="fermerReglages()"><span class="point" id="point"></span>Colis</button>
+    <button id="seg-historique" onclick="ouvrirHistorique()">Historique</button>
+    <button id="seg-reglages" onclick="ouvrirReglages(false)">Réglages</button>
+  </div>
+  <div class="droite">
+    <div class="fenetre-boutons">
+      <button title="Réduire" onclick="api('reduire')"><svg viewBox="0 0 10 10"><path d="M0 5h10"/></svg></button>
+      <button title="Agrandir" onclick="api('agrandir')"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9" rx="1.5"/></svg></button>
+      <button class="fermer" title="Fermer" onclick="api('fermer')"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<!-- ======== écran des colis ======== -->
+<section class="ecran" id="ecran-colis">
+  <div class="entete">
+    <div>
+      <div class="h1-ligne"><h1 id="h1">Connexion à Odoo…</h1><span class="pastille attente" id="pastille">Connexion</span></div>
+      <p id="sous-titre">Colis Mondial Relay validés, sans numéro de colis. Tapez le poids pesé, emballage compris.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="b-actualiser" onclick="actualiser()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+        Actualiser
+      </button>
+    </div>
+  </div>
+
+  <div class="carte liste" id="liste">
+    <div class="tete"><span></span><span>Commande</span><span>Client</span><span>Point relais</span><span title="Livraison facturée au client sur la commande, TTC">Facturé</span><span>Poids pesé</span></div>
+    <div id="lignes"></div>
+  </div>
+  <div class="refus cache" id="refus"></div>
+
+  <div class="pied">
+    <div class="etat" id="etat"></div>
+    <button class="btn principal" id="b-creer" onclick="demanderCreation()" disabled>Créer les étiquettes</button>
+  </div>
+</section>
+
+<!-- ======== écran historique ======== -->
+<section class="ecran cache" id="ecran-historique">
+  <div class="entete">
+    <div>
+      <h1 id="h1-historique">Étiquettes créées</h1>
+      <p>Pour réimprimer une étiquette abîmée ou retrouver un numéro de colis. Les PDF restent sur ce PC, dans le dossier « sortie ».</p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="b-hist-actualiser" onclick="ouvrirHistorique()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+        Actualiser
+      </button>
+    </div>
+  </div>
+  <div class="liste historique" id="historique"></div>
+  <div class="pied"><div class="etat">Une étiquette réimprimée ne vaut que pour son colis d'origine.</div></div>
+</section>
+
+<!-- ======== écran des réglages ======== -->
+<section class="ecran reglages cache" id="ecran-reglages">
+  <div class="entete">
+    <div>
+      <h1 id="h1-reglages">Réglages</h1>
+      <p>Les clés restent sur ce PC, dans le dossier de l'outil. Cliquez dans un champ pour voir son aide en bas.</p>
+    </div>
+  </div>
+  <div class="colonnes">
+    <div class="groupe"><h3>Odoo</h3><div class="carte" id="groupe-odoo"></div></div>
+    <div class="groupe"><h3>Mondial Relay</h3><div class="carte" id="groupe-mr"></div></div>
+  </div>
+  <div class="carte resultats" id="resultats"><div class="info">Cliquez sur « Tester les connexions ». Rien n'est créé ni payé.</div></div>
+  <div class="pied">
+    <div class="etat" id="etat-reglages"></div>
+    <button class="btn texte" id="b-grille" onclick="ouvrirTarifs()">Grille tarifaire (facultatif)…</button>
+    <button class="btn" id="b-tester" onclick="testerReglages()" style="margin-left:auto">Tester les connexions</button>
+    <button class="btn principal" id="b-enregistrer" onclick="enregistrerReglages()">Enregistrer</button>
+  </div>
+</section>
+
+<!-- ======== écran grille tarifaire (facultatif) ======== -->
+<section class="ecran cache" id="ecran-tarifs">
+  <div class="entete">
+    <div>
+      <h1>Grille tarifaire</h1>
+      <p>Facultatif. Prix HT d'une étiquette selon le pays du relais et le poids. Les tranches de poids sont libres : modifiez-les, ajoutez-en, supprimez-en. Laissez vide ce que vous ne connaissez pas : l'outil affichera « prix inconnu ».</p>
+    </div>
+    <div class="actions">
+      <label class="date-grille">Grille en vigueur au <input class="entree" type="date" id="t-date"></label>
+    </div>
+  </div>
+  <div class="outils-grille">
+    <div class="depot" id="depot" tabindex="0" title="Choisir le fichier de la grille" onclick="$('#fichier-tarifs').click()" onkeydown="if(event.key==='Enter')$('#fichier-tarifs').click()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+      <span><b>Déposez ici la grille du compte</b>, PDF ou CSV téléchargé depuis l'espace client pro, <u>ou cliquez pour choisir le fichier</u>. La grille se remplit, vous relisez, puis vous enregistrez.</span>
+      <input type="file" id="fichier-tarifs" accept=".pdf,.csv,.txt,.tsv" class="cache" onchange="if(this.files[0])importerFichier(this.files[0]); this.value=''">
+    </div>
+    <div class="publique">
+      <select class="entree" id="t-palier"></select>
+      <button class="btn" id="b-publique" onclick="chargerPublique()">Charger la grille publique</button>
+      <span class="note-grille">Grille publique relevée sur mondialrelay.fr, à défaut de la grille du compte.</span>
+    </div>
+  </div>
+  <div class="carte liste" id="tarifs"></div>
+  <div class="pied">
+    <div class="etat">Une estimation, jamais un prix garanti : le solde réel se lit sur mondialrelay.fr.</div>
+    <button class="btn" onclick="ouvrirReglages(false)" style="margin-left:auto">Retour aux réglages</button>
+    <button class="btn principal" id="b-tarifs" onclick="enregistrerTarifs()">Enregistrer la grille</button>
+  </div>
+</section>
+
+<div id="feuilles"></div>
+
+<script>
+  const $ = (s) => document.querySelector(s);
+  const POIDS_MAX = 30;
+  const etat = { pret: false, reel: null, db: "", prets: [], refus: [], poids: {}, pris: {}, changes: {}, installation: false, testeOk: false, occupe: false };
+  const h = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const kgTexte = (x) => x.toFixed(2).replace(".", ",");
+
+  // ---------- pont Python ----------
+  function api(nom, ...args) { return window.pywebview.api[nom](...args); }
+  async function pret() {
+    if (window.pywebview && window.pywebview.api) return;
+    await new Promise((r) => window.addEventListener("pywebviewready", r, { once: true }));
+  }
+  function occuper(message) {
+    etat.occupe = !!message;
+    for (const id of ["seg-colis", "seg-historique", "seg-reglages", "b-actualiser", "b-creer", "b-tester", "b-enregistrer", "b-grille", "b-tarifs", "b-publique"]) { const b = $("#" + id); if (b) b.disabled = etat.occupe || (id === "b-creer" && (!etat.pret || etat.lecture)); }
+    $("#etat").innerHTML = message ? `<span class="rouage"></span>${h(message)}` : "";
+    $("#etat-reglages").innerHTML = message ? `<span class="rouage"></span>${h(message)}` : "";
+    if (!message) majEtat();
+  }
+
+  // ---------- démarrage ----------
+  async function demarrer() {
+    await pret();
+    const info = await api("info");
+    etat.installation = info.installation; etat.lecture = !!info.lecture;
+    if (etat.installation || !info.complet) { ouvrirReglages(true); return; }
+    await connecter();
+  }
+  async function connecter() {
+    occuper("Connexion à Odoo…");
+    $("#h1").textContent = "Connexion à Odoo…";
+    const r = await api("demarrer");
+    occuper("");
+    if (!r.ok) { $("#h1").textContent = "Connexion impossible"; pastille("attente", "Hors ligne"); erreur(r.erreur, true); return; }
+    etat.pret = true; etat.reel = r.reel; etat.db = r.db;
+    const demo = r.db === "demo";
+    if (etat.lecture) pastille("attente", `Lecture seule · ${r.reel ? "production" : "base " + r.db} · aucune création`);
+    else if (r.reel) pastille("prod", "Production · étiquettes payées");
+    else pastille("simu", demo ? "Démonstration · données fictives" : "Simulation · rien n'est payé");
+    $("#sous-titre").textContent = etat.lecture ? "Mode lecture seule : vous pouvez tout consulter et vérifier, mais aucune étiquette ne sera créée ni payée." : r.reel
+      ? "Chaque étiquette créée est payée sur le crédit Mondial Relay. Tapez le poids pesé, emballage compris."
+      : demo ? "Mode démo : colis inventés, rien n'est envoyé à Odoo ni à Mondial Relay. Entraînez-vous librement."
+      : `Base « ${r.db} » : rien n'est payé, fausses étiquettes, faux numéros TEST. Tapez le poids pesé, emballage compris.`;
+    await actualiser();
+  }
+  function pastille(classe, texte) { const p = $("#pastille"); p.className = "pastille " + classe; p.textContent = texte; $("#point").className = "point " + classe; }
+  function segment(nom) { for (const n of ["colis", "historique", "reglages"]) $("#seg-" + n).classList.toggle("actif", nom === n); }
+  function montrerEcran(nom) { for (const n of ["colis", "historique", "reglages", "tarifs"]) $("#ecran-" + n).classList.toggle("cache", nom !== n); segment(nom === "tarifs" ? "reglages" : nom); }
+  const euros = (x) => x.toFixed(2).replace(".", ",") + " €";
+
+  // ---------- grille tarifaire (facultative) ----------
+  async function ouvrirTarifs() {
+    const g = await api("tarifs_lire");
+    montrerEcran("tarifs");
+    $("#t-date").value = g.date || "";
+    if (!$("#t-palier").options.length) { const pub = await api("tarifs_publique", 0); $("#t-palier").innerHTML = pub.paliers.map((t, i) => `<option value="${i}">${h(t)}</option>`).join(""); }
+    etat.grille = g;
+    rendreGrille();
+  }
+  // la grille à l'écran : une ligne par tranche (poids modifiable, supprimable), une colonne par pays, « Ajouter une tranche » en bas
+  function rendreGrille() {
+    const g = etat.grille, pays = Object.keys(g.pays), colonnes = `grid-template-columns: 150px repeat(${pays.length}, 1fr) 36px`;
+    $("#tarifs").innerHTML = `
+      <div class="tete tete-t" style="${colonnes}"><span>Poids jusqu'à (kg)</span>${pays.map((p) => `<span>${p}</span>`).join("")}<span></span></div>
+      ${g.tranches.map((t, i) => `
+        <div class="ligne-t" style="${colonnes}">
+          <span class="prix-t tranche-t"><input inputmode="decimal" id="t-poids-${i}" value="${t == null ? "" : String(t / 1000).replace(".", ",")}" placeholder="kg" title="Poids maximal de la tranche, en kg"><span>kg</span></span>
+          ${pays.map((p) => `<span class="prix-t"><input inputmode="decimal" id="t-${p}-${i}" value="${g.pays[p][i] == null ? "" : prixTexte(g.pays[p][i])}" placeholder="–"><span>€</span></span>`).join("")}
+          <button class="btn texte suppr-t" title="Supprimer cette tranche" onclick="supprimerTranche(${i})">×</button>
+        </div>`).join("")}
+      <div class="ligne-t ajout-t"><button class="btn texte" onclick="ajouterTranche()">+ Ajouter une tranche</button></div>`;
+  }
+  function lireGrilleEcran() {
+    // ce qui est à l'écran → {date, tranches (g), pays}, sans tri ni contrôle (le Python s'en charge à l'enregistrement)
+    const g = etat.grille, pays = {};
+    const tranches = g.tranches.map((_, i) => { const v = parseFloat(($(`#t-poids-${i}`).value || "").replace(",", ".")); return isNaN(v) ? null : Math.round(v * 1000); });
+    for (const p of Object.keys(g.pays)) pays[p] = g.tranches.map((_, i) => { const v = $(`#t-${p}-${i}`).value.trim(); return v ? parseFloat(v.replace(",", ".")) : null; });
+    return { date: $("#t-date").value, tranches, pays };
+  }
+  function ajouterTranche() {
+    const e = lireGrilleEcran();
+    e.tranches.push(null); for (const p of Object.keys(e.pays)) e.pays[p].push(null);
+    etat.grille = { ...etat.grille, tranches: e.tranches, pays: e.pays }; rendreGrille();
+    const dernier = $(`#t-poids-${e.tranches.length - 1}`); if (dernier) dernier.focus();
+  }
+  function supprimerTranche(i) {
+    const e = lireGrilleEcran();
+    e.tranches.splice(i, 1); for (const p of Object.keys(e.pays)) e.pays[p].splice(i, 1);
+    etat.grille = { ...etat.grille, tranches: e.tranches, pays: e.pays }; rendreGrille();
+  }
+  const prixTexte = (v) => (+v).toFixed(2).replace(".", ",");
+  function remplirGrille(g) {
+    // remplace la grille à l'écran par une grille reçue (publique ou lue dans un fichier), avec ses propres tranches, sans l'enregistrer
+    const pays = {};
+    for (const p of Object.keys(etat.grille.pays)) pays[p] = g.tranches.map((_, i) => (g.pays[p] || [])[i] == null ? null : +(g.pays[p][i]));
+    etat.grille = { ...etat.grille, tranches: g.tranches.slice(), pays };
+    rendreGrille();
+    if (g.date) $("#t-date").value = g.date;
+  }
+  async function chargerPublique() {
+    const g = await api("tarifs_publique", +$("#t-palier").value);
+    remplirGrille(g);
+    feuille(`<h2>Grille publique chargée</h2><p>France au palier « ${h(g.paliers[+$("#t-palier").value])} », international aux prix avant remise, tarifs HT du ${new Date(g.date).toLocaleDateString("fr-FR")}. Relisez, corrigez si votre compte a d'autres conditions, puis cliquez sur « Enregistrer la grille ».</p>
+      <div class="boutons"><button class="btn principal" onclick="fermerFeuille()">OK</button></div>`);
+  }
+  // noms de pays ou codes (FR, BE_LU, Zone_ES…) dans l'en-tête d'un tableau collé
+  const PAYS_MOTS = { FR: /france|monaco|\bFR\b/i, BE: /belgique|\bBE\b/i, LU: /luxembourg|\bLUX?\b/i, NL: /pays.?bas|\bNL\b/i, ES: /espagne|\bES\b/i, PT: /portugal|\bPT\b/i, DE: /allemagne|\bDE\b/i,
+                      IT: /italie|\bIT\b/i, PL: /pologne|\bPL\b/i, AT: /autriche|\bAT\b/i };  // IT, PL, AT : colonnes reconnues pour l'alignement, non reprises dans la grille
+  const SEPARATEURS = /\t|;|\||\s{2,}/;
+  // Analyse d'un tableau de tarifs en texte (PDF dont le texte a été extrait, CSV). Renvoie {grille, resume} ou {erreur}.
+  function analyserTexte(texte) {
+    const lignes = texte.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const codes = (c) => Object.keys(PAYS_MOTS).filter((p) => PAYS_MOTS[p].test(c));
+    const entete = lignes.find((l) => codes(l.replace(/_/g, " ")).length);
+    if (!entete) return { erreur: "Aucune ligne d'en-tête avec des noms de pays (Belgique, Espagne…)." };
+    // colonnes de l'en-tête : cellules séparées (tabulation, ; ou |) pouvant porter deux pays, sinon un pays par mot
+    let colonnes;
+    if (/\t|;|\|/.test(entete)) colonnes = entete.split(SEPARATEURS).map((c) => codes(c.replace(/_/g, " "))).filter((c) => c.length);
+    else colonnes = entete.replace(/_/g, " ").split(/\s+/).map((mot) => codes(mot)).filter((c) => c.length);
+    const prixDe = (reste) => reste.split(/[\s;|\t]+/).map((t) => t.replace(/€/g, "").trim()).filter((t) => /^\d+[.,]?\d*$/.test(t) || /^[-–—]$/.test(t));
+    // les tranches du fichier remplacent celles de l'écran : on relève d'abord tous les poids, triés
+    const rangs = [];
+    for (const l of lignes) {
+      if (l === entete) continue;
+      const m = l.match(/^(?:jusqu.{0,3}[àa]\s*|<\s*)?([\d.,]+)\s*(kg|g)?\b/i);
+      if (!m || !/\d/.test(m[1])) continue;
+      const grammes = Math.round(parseFloat(m[1].replace(",", ".")) * ((m[2] || "kg").toLowerCase() === "kg" ? 1000 : 1));
+      if (grammes > 0) rangs.push({ grammes, reste: l.slice(m.index + m[0].length) });
+    }
+    const tranches = [...new Set(rangs.map((r) => r.grammes))].sort((a, b) => a - b);
+    const g = { tranches, pays: {} }, nb = { lignes: 0, prix: 0 };
+    let decalage = null;
+    for (const { grammes, reste } of rangs) {
+      const i = tranches.indexOf(grammes);
+      const prix = prixDe(reste);
+      if (!prix.length) continue;
+      // moins de prix que de colonnes : Mondial Relay groupe Belgique+Luxembourg et Espagne+Portugal
+      if (prix.length < colonnes.length) {
+        const fusion = [];
+        for (let k = 0; k < colonnes.length; k++) {
+          const a = colonnes[k], b = colonnes[k + 1];
+          if (b && a.length === 1 && b.length === 1 && ((a[0] === "BE" && b[0] === "LU") || (a[0] === "ES" && b[0] === "PT"))) { fusion.push([a[0], b[0]]); k++; } else fusion.push(a);
+        }
+        if (fusion.length === prix.length) colonnes = fusion;
+      }
+      if (prix.length !== colonnes.length) decalage = `${prix.length} prix pour ${colonnes.length} colonnes de pays sur la ligne « ${(grammes / 1000).toString().replace(".", ",")} kg »`;
+      nb.lignes++;
+      colonnes.forEach((pays, j) => {
+        const brut = prix[j]; if (brut == null) return;
+        const v = /^[-–—]$/.test(brut) ? NaN : parseFloat(brut.replace(",", "."));
+        for (const p of pays) { if (!(p in etat.grille.pays)) continue; (g.pays[p] = g.pays[p] || Array(tranches.length).fill(null))[i] = isNaN(v) ? null : v; if (!isNaN(v)) nb.prix++; }
+      });
+    }
+    if (!nb.lignes) return { erreur: "Aucune ligne de poids reconnue (« jusqu'à 2 kg … », « < 2 kg | … » ou « 2;… »)." };
+    if (decalage) return { erreur: `Colonnes ambiguës : ${decalage}. Essayez le fichier CSV plutôt que le PDF, ou saisissez les prix à la main.` };
+    const resume = `${nb.lignes} tranche${nb.lignes > 1 ? "s" : ""} de poids et ${nb.prix} prix lus pour ${Object.keys(g.pays).join(", ")} ; les tranches du fichier remplacent celles de l'écran.`;
+    return { grille: g, resume };
+  }
+  // dépôt d'un fichier (PDF, CSV, texte) sur l'écran Grille tarifaire
+  (() => {
+    const zone = $("#ecran-tarifs");
+    zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("survol"); });
+    zone.addEventListener("dragleave", (e) => { if (!zone.contains(e.relatedTarget)) zone.classList.remove("survol"); });
+    zone.addEventListener("drop", (e) => {
+      e.preventDefault(); zone.classList.remove("survol");
+      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) importerFichier(f);
+    });
+  })();
+  function importerFichier(f) {
+    const lecteur = new FileReader();
+    lecteur.onload = async () => {
+      occuper(`Lecture de ${f.name}…`);
+      const r = await api("lire_fichier_tarifs", f.name, lecteur.result);
+      occuper("");
+      if (r.erreur) { erreur(r.erreur); return; }
+      const a = analyserTexte(r.texte);
+      if (a.erreur) { erreur(`${f.name} : ${a.erreur}`); return; }
+      remplirGrille(a.grille);
+      feuille(`<h2>Grille remplie depuis ${h(f.name)}</h2><p>${a.resume} Relisez, complétez la date, puis cliquez sur « Enregistrer la grille ».</p>
+        <div class="boutons"><button class="btn principal" onclick="fermerFeuille()">OK</button></div>`);
+    };
+    lecteur.readAsDataURL(f);
+  }
+  async function enregistrerTarifs() {
+    const e = lireGrilleEcran();
+    if (e.tranches.some((t) => t == null)) { erreur("Chaque tranche doit avoir un poids maximal en kg (ou supprimez la ligne vide)."); return; }
+    const r = await api("tarifs_enregistrer", { date: e.date, tranches: e.tranches, pays: e.pays });
+    if (!r.ok) { erreur(r.erreur); return; }
+    feuille(`<h2>Grille enregistrée</h2><p>Les estimations apparaîtront dans la confirmation et dans l'historique pour les cas couverts.</p>
+      <div class="boutons"><button class="btn principal" onclick="fermerFeuille(); ouvrirReglages(false)">OK</button></div>`);
+  }
+
+  // ---------- historique (dossier « sortie ») ----------
+  const quand = (stamp) => {
+    const d = new Date(+stamp.slice(0, 4), +stamp.slice(4, 6) - 1, +stamp.slice(6, 8), +stamp.slice(9, 11), +stamp.slice(11, 13));
+    const t = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    return t.charAt(0).toUpperCase() + t.slice(1) + " à " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }).replace(":", " h ");
+  };
+  async function ouvrirHistorique() {
+    await pret();
+    if (etat.installation) return;
+    montrerEcran("historique");
+    const zone = $("#historique");
+    zone.innerHTML = `<div class="vide">Lecture du dossier…</div>`;
+    const creations = await api("historique");
+    if (!creations.length) { zone.innerHTML = `<div class="carte vide"><b>Aucune étiquette créée pour l'instant</b>Elles apparaîtront ici après la première création.</div>`; return; }
+    // les chemins Windows (antislashs, guillemets) ne vont pas dans un attribut HTML : on les garde dans un tableau
+    etat.chemins = [];
+    const ref = (p) => etat.chemins.push(p) - 1;
+    zone.innerHTML = creations.map((c) => `
+      <div class="creation">
+        <div class="tete-c">
+          <span class="quand">${h(quand(c.stamp))}</span>
+          <span class="combien">${c.lignes.length} étiquette${c.lignes.length > 1 ? "s" : ""}${c.lignes.some((l) => l.prix != null) ? ` · ≈ ${euros(c.lignes.reduce((t, l) => t + (l.prix || 0), 0))} HT${c.lignes.some((l) => l.prix == null) ? " (partiel)" : ""}` : ""}</span>
+          ${c.pdf ? `<button class="btn" onclick="ouvrirChemin(${ref(c.pdf)})">Ouvrir le PDF</button>` : ""}
+          <button class="btn" onclick="ouvrirChemin(${ref(c.dossier)})">Dossier</button>
+        </div>
+        ${c.lignes.map((l) => `
+          <div class="ligne-c">
+            <span class="cmd">${h(l.commande)}</span><span>${h(l.client)}</span>
+            <span class="colis">${h(l.n_colis)}</span><span title="Poids · coût HT estimé · facturé au client TTC">${h((+l.poids_g / 1000).toFixed(2).replace(".", ","))} kg${l.prix != null ? ` · ${euros(l.prix)}` : ""}${l.facture_ttc != null ? ` · ${l.facture_ttc === 0 ? "offerte" : euros(l.facture_ttc) + " TTC"}` : ""}</span>
+            ${l.fichier ? `<button class="btn texte" onclick="ouvrirChemin(${ref(l.fichier)})">Étiquette</button>` : "<span></span>"}
+          </div>`).join("")}
+      </div>`).join("");
+  }
+  function ouvrirChemin(i) { api("ouvrir_fichier", etat.chemins[i]); }
+
+  // ---------- liste ----------
+  async function actualiser() {
+    if (!etat.pret) { await connecter(); return; }
+    occuper("Lecture des colis dans Odoo…");
+    const r = await api("lister");
+    occuper("");
+    if (!r.ok) { erreur(r.erreur); return; }
+    etat.prets = r.prets; etat.refus = r.refus;
+    for (const l of etat.prets) if (!(l.bon in etat.pris)) etat.pris[l.bon] = true;
+    afficher();
+  }
+  function afficher() {
+    const n = etat.prets.length;
+    $("#h1").textContent = n === 0 ? "Aucun colis à étiqueter" : n === 1 ? "1 colis à étiqueter" : `${n} colis à étiqueter`;
+    const zone = $("#lignes");
+    if (!n) {
+      zone.innerHTML = `<div class="vide"><b>Rien à faire pour l'instant</b>Les bons doivent être validés dans Odoo. Validez-les, puis cliquez sur « Actualiser ».</div>`;
+    } else {
+      zone.innerHTML = etat.prets.map((l, i) => `
+        <div class="ligne ${etat.pris[l.bon] ? "" : "exclu"}" data-bon="${h(l.bon)}">
+          <button class="coche ${etat.pris[l.bon] ? "on" : ""}" title="Prendre ce colis aujourd'hui" onclick="basculer('${h(l.bon)}')"><svg viewBox="0 0 24 24"><path d="M5 12.5 10 17 19 7"/></svg></button>
+          <div class="cmd">${h(l.commande)}</div>
+          <div class="client">${h(l.client)}</div>
+          <div class="relais" tabindex="${etat.pris[l.bon] ? 0 : -1}" title="${etat.pris[l.bon] ? "Changer de point relais : le client ira chercher son colis ailleurs" : "Colis décoché : cochez-le pour le modifier"}" onclick="if(etat.pris['${h(l.bon)}'])demanderRelais('${h(l.bon)}')" onkeydown="if(event.key==='Enter'&&etat.pris['${h(l.bon)}'])demanderRelais('${h(l.bon)}')">
+            <span class="num ${l.change ? "change" : ""}">${h(l.relais_num)}</span>
+            <span class="txt">${h(l.relais)}</span>
+            <svg class="crayon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+          </div>
+          <div class="facture" title="Livraison facturée au client sur la commande, TTC">${l.facture_ttc == null ? "—" : l.facture_ttc === 0 ? "offerte" : euros(l.facture_ttc)}</div>
+          <div class="poids" id="poids-${i}"><input inputmode="decimal" placeholder="0,00" value="${h(etat.poids[l.bon] || "")}" ${etat.pris[l.bon] ? "" : "disabled"} oninput="saisie('${h(l.bon)}', this)" onkeydown="clavier(event, ${i})"><span>kg</span></div>
+        </div>`).join("");
+      const premier = zone.querySelector("input"); if (premier) premier.focus();
+    }
+    const refus = $("#refus");
+    if (etat.refus.length) {
+      refus.innerHTML = `<div><b>Pas pris :</b> ${etat.refus.map((r) => `${h(r.commande)} (${h(r.bon)}) : ${h(r.motif)}`).join(" · ")}</div>`;
+      refus.classList.remove("cache");
+    } else refus.classList.add("cache");
+    majEtat();
+  }
+  function basculer(bon) { etat.pris[bon] = !etat.pris[bon]; afficher(); }
+  function saisie(bon, input) { etat.poids[bon] = input.value; input.parentElement.classList.remove("faute"); majEtat(); }
+  function clavier(e, i) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const suivant = [...document.querySelectorAll(".poids input")].find((inp, j) => j > i && !inp.disabled);  // saute les colis décochés
+      if (suivant) suivant.focus(); else $("#b-creer").focus();
+    }
+  }
+  function selection() { return etat.prets.filter((l) => etat.pris[l.bon]); }
+  function majEtat() {
+    if (etat.occupe) return;
+    const sel = selection(), saisis = sel.filter((l) => (etat.poids[l.bon] || "").trim()).length;
+    $("#etat").textContent = !etat.prets.length ? "" : `${sel.length} colis sélectionné${sel.length > 1 ? "s" : ""} · ${saisis} poids saisi${saisis > 1 ? "s" : ""} sur ${sel.length}`;
+    const b = $("#b-creer");
+    b.textContent = etat.lecture ? "Création désactivée (lecture seule)" : sel.length > 1 ? `Créer ${sel.length} étiquettes` : "Créer l'étiquette";
+    b.disabled = !etat.pret || !sel.length || etat.lecture;
+  }
+
+  // ---------- création ----------
+  async function demanderCreation() {
+    const sel = selection();
+    if (!sel.length) return;
+    const lignes = sel.map((l) => ({ bon: l.bon, poids: etat.poids[l.bon] || "" }));
+    const v = await api("verifier_poids", lignes);
+    document.querySelectorAll(".poids").forEach((p) => p.classList.remove("faute"));
+    if (v.fautes.length) {
+      for (const bon of v.fautes) { const i = etat.prets.findIndex((l) => l.bon === bon); const p = $(`#poids-${i}`); if (p) p.classList.add("faute"); }
+      const noms = v.fautes.map((bon) => etat.prets.find((l) => l.bon === bon).commande).join(", ");
+      feuille(`
+        <h2>Poids manquant ou pas compris</h2>
+        <p>Pour : <b>${h(noms)}</b>.<br>Tapez le poids de la balance en kg, par exemple 1,25 (maximum ${POIDS_MAX} kg), ou décochez le colis s'il ne part pas aujourd'hui.</p>
+        <div class="boutons"><button class="btn principal" onclick="fermerFeuille()">OK</button></div>`);
+      const i = etat.prets.findIndex((l) => l.bon === v.fautes[0]); const inp = document.querySelector(`#poids-${i} input`); if (inp) setTimeout(() => inp.focus(), 50);
+      return;
+    }
+    const prixConnus = sel.filter((l) => v.prix[l.bon] != null), total = prixConnus.reduce((t, l) => t + v.prix[l.bon], 0);
+    const factures = sel.filter((l) => l.facture_ttc != null), totalFacture = factures.reduce((t, l) => t + l.facture_ttc, 0);
+    const facture = (l) => l.facture_ttc == null ? "" : l.facture_ttc === 0 ? "offerte" : euros(l.facture_ttc);
+    const recap = `<div class="avec-prix entete-recap"><b></b><span></span><span></span><span style="text-align:right">Coût HT</span><span style="text-align:right">Facturé TTC</span></div>`
+      + sel.map((l) => `<div class="avec-prix"><b>${h(l.commande)}</b><span>${h(l.client)}</span><span style="text-align:right">${kgTexte(v.kg[l.bon])} kg</span><span style="text-align:right" class="${v.prix[l.bon] == null ? "inconnu" : ""}">${v.prix[l.bon] == null ? "inconnu" : euros(v.prix[l.bon])}</span><span style="text-align:right" class="${l.facture_ttc === 0 ? "inconnu" : ""}">${facture(l)}</span></div>`).join("")
+      + (prixConnus.length || factures.length ? `<div class="avec-prix total"><b></b><span>Total${prixConnus.length && prixConnus.length < sel.length ? ", coût partiel" : ""}${v.grille_date && prixConnus.length ? `, grille du ${new Date(v.grille_date).toLocaleDateString("fr-FR")}` : ""}</span><span></span><span style="text-align:right">${prixConnus.length ? euros(total) : ""}</span><span style="text-align:right">${factures.length ? euros(totalFacture) : ""}</span></div>` : "");
+    feuille(`
+      <h2>Créer ${sel.length > 1 ? sel.length + " étiquettes" : "l'étiquette"} ?</h2>
+      <div class="recap">${recap}</div>
+      <div class="avert ${etat.reel ? "prod" : "simu"}">${etat.reel ? "Elles seront payées sur le crédit Mondial Relay." : "Simulation : rien ne sera payé."}</div>
+      <div class="boutons"><button class="btn" onclick="fermerFeuille()">Annuler</button><button class="btn ${etat.reel ? "danger" : "principal"}" id="b-confirmer" onclick="creer()">${etat.reel ? "Créer et payer" : "Créer en simulation"}</button></div>`);
+    $("#b-confirmer").focus();
+  }
+  async function creer() {
+    const sel = selection();
+    fermerFeuille();
+    occuper(`Création ${sel.length > 1 ? "des " + sel.length + " étiquettes" : "de l'étiquette"}…`);
+    const r = await api("creer", sel.map((l) => ({ bon: l.bon, poids: etat.poids[l.bon] || "" })));
+    occuper("");
+    if (!r.ok) { erreur(r.erreur); return; }
+    for (const f of r.faits) { delete etat.poids[f.bon]; }
+    const lignes = r.faits.map((f) => `<div><b>${h(f.commande)}</b><span>${h(f.client)}</span><span class="ok" style="text-align:right">${h(f.n_colis)}</span></div>`)
+      .concat(r.echecs.map((e) => `<div><b>${h(e.commande)}</b><span class="ko">pas faite : ${h(e.motif)}</span><span></span></div>`)).join("");
+    feuille(`
+      <h2>${r.faits.length ? (r.faits.length > 1 ? r.faits.length + " étiquettes créées" : "Étiquette créée") : "Aucune étiquette créée"}</h2>
+      <p>${r.faits.length ? "Le PDF s'est ouvert : imprimez-le et collez chaque étiquette sur son colis. Les numéros de colis sont écrits dans Odoo." : "Rien n'a été écrit dans Odoo."}</p>
+      <div class="recap">${lignes}</div>
+      <div class="boutons">${r.pdf ? `<button class="btn" onclick="api('ouvrir_pdf')">Rouvrir le PDF</button>` : ""}<button class="btn principal" onclick="fermerFeuille(); actualiser()">OK</button></div>`);
+  }
+
+  // ---------- changement de relais ----------
+  function demanderRelais(bon) {
+    const l = etat.prets.find((x) => x.bon === bon);
+    feuille(`
+      <h2>Changer de point relais</h2>
+      <p>${h(l.commande)} — ${h(l.client)}<br>Actuellement : ${h(l.relais_num)} · ${h(l.relais)}</p>
+      <input class="entree" id="nouveau-relais" placeholder="Numéro à 6 chiffres, ex. 036354" maxlength="9" autocomplete="off">
+      <div class="erreur" id="erreur-relais"></div>
+      <div class="boutons"><button class="btn" onclick="fermerFeuille()">Annuler</button><button class="btn principal" onclick="changerRelais('${h(bon)}')">Vérifier et changer</button></div>`);
+    const inp = $("#nouveau-relais"); inp.focus();
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") changerRelais(bon); });
+  }
+  async function changerRelais(bon) {
+    const val = $("#nouveau-relais").value.trim().toUpperCase();
+    if (!/^([A-Z]{2}-)?\d{6}$/.test(val)) { $("#erreur-relais").textContent = "Il faut le numéro à 6 chiffres du point relais, ex. 036354."; return; }
+    $("#erreur-relais").textContent = "Vérification chez Mondial Relay…";
+    const r = await api("changer_relais", bon, val);
+    if (!r.ok) { $("#erreur-relais").textContent = r.info + " Le point relais n'a pas été changé."; return; }
+    fermerFeuille();
+    const l = etat.prets.find((x) => x.bon === bon); l.relais = r.info; l.relais_num = r.num; l.change = true;
+    afficher();
+  }
+
+  // ---------- feuilles ----------
+  function feuille(html) { $("#feuilles").innerHTML = `<div class="voile" onclick="if(event.target===this)fermerFeuille()"><div class="feuille">${html}</div></div>`; }
+  function fermerFeuille() { $("#feuilles").innerHTML = ""; }
+  function erreur(texte, proposerReglages) {
+    feuille(`
+      <h2>Un problème est survenu</h2>
+      <pre>${h(texte)}</pre>
+      <p style="margin-top:12px">Si ça recommence : contactez l'administrateur de l'outil.</p>
+      <div class="boutons">${proposerReglages ? `<button class="btn" onclick="fermerFeuille(); ouvrirReglages(false)">Ouvrir les réglages</button><button class="btn" onclick="fermerFeuille(); connecter()">Réessayer</button>` : ""}<button class="btn principal" onclick="fermerFeuille()">OK</button></div>`);
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if ($("#feuilles").innerHTML) fermerFeuille();
+    else if (!$("#ecran-tarifs").classList.contains("cache")) ouvrirReglages(false);
+    else if (!$("#ecran-reglages").classList.contains("cache") && !etat.installation) fermerReglages();
+  });
+
+  // ---------- réglages ----------
+  async function ouvrirReglages(force) {
+    await pret();
+    const r = await api("reglages_lire");
+    etat.testeOk = false; etat.resultats = null; etat.champs = [...r.odoo, ...r.mr];
+    $("#h1-reglages").textContent = etat.installation ? "Bienvenue" : "Réglages";
+    $("#segments").classList.toggle("cache", etat.installation);
+    segment("reglages");
+    const exemples = { ODOO_USER: "prenom@exemple.fr", MR_EXPE_TEL: "0199001234", MR_EXPE_MAIL: "expedition@exemple.fr" };
+    const rendu = (champs) => champs.map(([cle, libelle, aide, genre]) => {
+      const commun = `id="r-${cle}" data-aide="${h(aide)}" placeholder="${h(exemples[cle] || "")}" autocomplete="off" spellcheck="false"`;
+      let w;
+      if (genre === "format") w = `<select class="entree" id="r-${cle}" data-aide="${h(aide)}">${["A4", "A5", "10x15"].map((f) => `<option ${(r.valeurs[cle] || "A4") === f ? "selected" : ""}>${f}</option>`).join("")}</select>`;
+      else if (genre === "secret") w = `<div class="secret"><input class="entree" type="password" value="${h(r.valeurs[cle] || "")}" ${commun}><button type="button" title="Afficher" onclick="voir('r-${cle}', this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>`;
+      else if (genre === "date") w = `<input class="entree" type="date" value="${h(r.valeurs[cle] || "")}" ${commun}>`;
+      else w = `<input class="entree" value="${h(r.valeurs[cle] || "")}" ${commun}>`;
+      return `<div class="champ"><label for="r-${cle}">${h(libelle)}</label>${w}</div>`;
+    }).join("");
+    $("#groupe-odoo").innerHTML = rendu(r.odoo);
+    $("#groupe-mr").innerHTML = rendu(r.mr);
+    montrerDefaut();
+    montrerEcran("reglages");
+    const premierVide = [...document.querySelectorAll("#ecran-reglages input")].find((i) => !i.value); (premierVide || document.querySelector("#ecran-reglages input")).focus();
+  }
+  function voir(id, b) { const i = document.getElementById(id); i.type = i.type === "password" ? "text" : "password"; b.style.color = i.type === "text" ? "var(--accent)" : ""; }
+  function valeursReglages() { const v = {}; document.querySelectorAll("#ecran-reglages .entree").forEach((e) => { v[e.id.slice(2)] = e.value.trim(); }); return v; }
+  function montrerResultats(lignes) {
+    etat.resultats = lignes;
+    $("#resultats").innerHTML = lignes.map(([ok, t]) => `<div class="${ok === null ? "info" : ok ? "ok" : "ko"}">${h(t)}</div>`).join("");
+    marquer(lignes);
+  }
+  // champs en rouge : ceux que chaque ligne d'erreur met en cause
+  const CLES_ODOO = ["ODOO_URL", "ODOO_DB", "ODOO_USER", "ODOO_API_KEY"], CLES_MR = ["MR_ENSEIGNE", "MR_CLE_PRIVEE"];
+  function marquer(lignes) {
+    const fautifs = new Set();
+    for (const [ok, t] of lignes) {
+      if (ok !== false) continue;
+      if (t.startsWith("Odoo : ÉCHEC")) CLES_ODOO.forEach((c) => fautifs.add(c));
+      else if (t.startsWith("Odoo : droit")) fautifs.add("ODOO_USER");
+      else if (t.startsWith("Mondial Relay : ÉCHEC")) CLES_MR.forEach((c) => fautifs.add(c));
+      else if (t.includes("adresse Odoo")) fautifs.add("ODOO_URL");
+      else for (const [cle, libelle] of etat.champs || []) if (t.includes(libelle)) fautifs.add(cle);
+    }
+    document.querySelectorAll("#ecran-reglages .entree").forEach((e) => e.classList.toggle("faute", fautifs.has(e.id.slice(2))));
+  }
+  $("#ecran-reglages").addEventListener("input", (e) => e.target.classList.remove("faute"));
+  function montrerDefaut() {
+    if (etat.resultats) { montrerResultats(etat.resultats); return; }
+    $("#resultats").innerHTML = etat.installation
+      ? `<div class="bienvenue">Dernière étape de l'installation : les identifiants. Une fois enregistrés, cette fenêtre se ferme et l'outil est prêt.</div>`
+      : `<div class="info">Cliquez sur « Tester les connexions ». Rien n'est créé ni payé.</div>`;
+  }
+  // aide du champ en bas de l'écran pendant qu'il a le focus, puis retour aux résultats
+  $("#ecran-reglages").addEventListener("focusin", (e) => { const aide = e.target.dataset && e.target.dataset.aide; if (aide) $("#resultats").innerHTML = `<div class="aide">${h(aide)}</div>`; });
+  $("#ecran-reglages").addEventListener("focusout", (e) => { if (e.target.dataset && e.target.dataset.aide !== undefined) montrerDefaut(); });
+  async function testerReglages() {
+    const v = valeursReglages();
+    const pb = await api("reglages_verifier", v);
+    if (pb.length) { montrerResultats(pb.map((t) => [false, t])); return; }
+    occuper("Test des connexions…");
+    const res = await api("reglages_tester", v);
+    occuper("");
+    etat.testeOk = res.every(([ok]) => ok);
+    montrerResultats(res.concat([[null, etat.testeOk ? "Tout est bon : cliquez sur « Enregistrer »." : "Corrigez ce qui est en rouge, puis testez à nouveau."]]));
+  }
+  async function enregistrerReglages() {
+    const v = valeursReglages();
+    const pb = await api("reglages_verifier", v);
+    if (pb.length) { montrerResultats(pb.map((t) => [false, t])); return; }
+    if (etat.resultats && etat.resultats.every(([ok]) => ok === false)) { etat.resultats = null; montrerDefaut(); }  // anciens contrôles corrigés
+    if (!etat.testeOk) {
+      feuille(`<h2>Enregistrer sans test réussi ?</h2><p>Les connexions n'ont pas été testées avec succès. L'outil risque de ne pas fonctionner.</p>
+        <div class="boutons"><button class="btn" onclick="fermerFeuille()">Revenir</button><button class="btn principal" onclick="fermerFeuille(); enregistrerVraiment()">Enregistrer quand même</button></div>`);
+      return;
+    }
+    enregistrerVraiment();
+  }
+  async function enregistrerVraiment() {
+    const r = await api("reglages_enregistrer", valeursReglages());
+    if (!r.ok) { erreur(r.erreur); return; }
+    if (etat.installation) {
+      feuille(`<h2>Installation terminée</h2><p>Réglages enregistrés. L'icône « Etiquettes Mondial Relay » est sur le Bureau.</p>
+        <div class="boutons"><button class="btn principal" onclick="api('fermer')">Fermer</button></div>`);
+      return;
+    }
+    fermerReglages(); etat.pret = false; await connecter();
+  }
+  function fermerReglages() {
+    if (etat.installation || !$("#ecran-colis").classList.contains("cache")) return;
+    montrerEcran("colis");
+    if (!etat.pret) connecter();
+  }
+
+  demarrer();
+</script>
+</body>
+</html>

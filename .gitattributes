@@ -1,0 +1,9 @@
+* text=auto
+*.bat text eol=crlf
+*.url text eol=crlf
+*.py text eol=lf
+*.pyw text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.exemple text eol=lf

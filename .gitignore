@@ -1,0 +1,9 @@
+# Réglages et clés : jamais dans le dépôt
+odoo.env
+mondialrelay.env
+tarifs.json
+# Produit par l'outil
+sortie/
+demo/
+__pycache__/
+*.pyc
