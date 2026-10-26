@@ -115,7 +115,7 @@ class Fenetre(tk.Tk):
             self.sous_titre["text"] = "Chaque étiquette créée est payée sur le crédit Mondial Relay."
         else:
             self.bandeau.config(text="SIMULATION", bg=ORANGE)
-            self.sous_titre["text"] = f"Base Odoo « {c['o'].db} » : rien n'est payé, fausses étiquettes, faux n° TEST."
+            self.sous_titre["text"] = f"Base Odoo « {c['o'].db} » : rien n'est payé, fausses étiquettes, faux n° TEST, rien n'est écrit dans Odoo."
         self.b_creer["state"] = "normal"
         self.actualiser()
 
@@ -226,7 +226,7 @@ class Fenetre(tk.Tk):
         lignes = [f"{f['commande']:<8}  {f['client'][:26]:<26}  n° {f['n_colis']}" for f in faits]
         lignes += [f"{b['origin']:<8}  PAS FAITE : {why}" for b, why in echecs]
         tete = (f"{len(faits)} étiquette(s) créée(s). Le PDF s'est ouvert : imprimez-le.\n"
-                "Les n° de colis sont écrits dans Odoo :\n\n") if faits else "Aucune étiquette créée.\n\n"
+                + ("Les n° de colis sont écrits dans Odoo :\n\n" if self.c["reel"] else "Simulation : rien n'est écrit dans Odoo.\n\n")) if faits else "Aucune étiquette créée.\n\n"
         f = tk.Toplevel(self)
         f.title("Étiquettes créées")
         t = tk.Text(f, width=64, height=min(18, len(lignes) + 5), font=("Consolas", 11), wrap="none")

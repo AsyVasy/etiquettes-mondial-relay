@@ -4,7 +4,8 @@ Version console (administrateur, options --bons --poids --relais --remplacer --v
 Pour l'utilisateur : la fenêtre etiquettes_fenetre.pyw, qui réutilise les fonctions de ce fichier.
 Bons pris : Mondial Relay, VALIDÉS depuis MR_DEPUIS, SANS n° de suivi. Un bon pas encore validé n'est jamais pris.
 - Base Odoo de prod (ODOO_BASE_PROD dans odoo.env) → vraies étiquettes, payées sur le crédit prépayé (après confirmation O/N).
-- Toute autre base, ou ODOO_BASE_PROD vide → SIMULATION : aucune étiquette payée, fausse étiquette « SIMULATION », faux n° TEST… écrit dans le bon.
+- Toute autre base, ou ODOO_BASE_PROD vide → SIMULATION : aucune étiquette payée, fausse étiquette « SIMULATION », faux n° TEST…,
+  et rien n'est écrit dans Odoo.
 
 Usage : python -I -X utf8 etiquettes_du_jour.py [--odoo odoo.env] [--mr mondialrelay.env] [--bons WH/OUT/1,WH/OUT/2] [--oui] [--verifier]
 Les clés restent dans les fichiers .env, jamais dans ce script.
@@ -234,10 +235,12 @@ def mettre_poids(p, kg):
 
 
 def creer(c, prets, sortie, dire=print):
-    """Crée les étiquettes (vraies en prod, simulation ailleurs), écrit carrier_tracking_ref seul,
-    assemble un PDF unique + un récap CSV. Renvoie (chemin du PDF ou None, faits, échecs)."""
+    """Crée les étiquettes (vraies en prod, simulation ailleurs), assemble un PDF unique + un récap CSV.
+    En prod, le n° de colis est écrit dans le bon (carrier_tracking_ref, rien d'autre) dès la réponse de Mondial Relay,
+    avant le téléchargement du PDF : une étiquette payée est toujours enregistrée. En simulation, Odoo n'est pas modifié.
+    Renvoie (chemin du PDF ou None, faits, échecs)."""
     o, mr, reel = c["o"], c["mr"], c["reel"]
-    stamp = datetime.now().strftime("%Y%m%d-%H%M")
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")  # à la seconde : deux créations dans la même minute ne s'écrasent plus
     out = Path(sortie) / stamp
     out.mkdir(parents=True, exist_ok=True)
     fmt = mr.get("MR_FORMAT", "A4")
@@ -250,8 +253,18 @@ def creer(c, prets, sortie, dire=print):
             if stat != "0":
                 echecs.append((b, f"Mondial Relay STAT {stat} {STAT.get(stat, 'voir la doc')}"))
                 dire(f"  ÉCHEC  {b['origin']} : {echecs[-1][1]}"); continue
-            with urllib.request.urlopen(MR_SITE + re.sub(r"format=[^&]*", f"format={fmt}", url), timeout=60) as r:
-                fichier.write_bytes(r.read())
+            try:  # tout de suite : l'étiquette est payée, le bon ne doit plus jamais être reproposé
+                o("stock.picking", "write", [b["id"]], {"carrier_tracking_ref": num})
+            except Exception as e:
+                raise RuntimeError(f"Étiquette {num} créée pour le bon {b['name']}, mais n° NON écrit dans Odoo ({e}). "
+                                   f"Notez ce n° dans le bon avant de relancer, sinon une 2e étiquette serait payée.") from e
+            try:
+                with urllib.request.urlopen(MR_SITE + re.sub(r"format=[^&]*", f"format={fmt}", url), timeout=60) as r:
+                    fichier.write_bytes(r.read())
+            except Exception as e:
+                echecs.append((b, f"étiquette {num} créée et n° écrit dans le bon, mais PDF non téléchargé ({e}) : "
+                                  f"à réimprimer depuis l'espace Mondial Relay"))
+                dire(f"  ÉCHEC  {b['origin']} : {echecs[-1][1]}"); continue
         else:
             stat, adr = detail_relais(c["ens"], c["cle"], p["LIV_Rel"], p["LIV_Rel_Pays"])
             if stat != "0":
@@ -263,10 +276,9 @@ def creer(c, prets, sortie, dire=print):
                                      f"N de colis fictif {num}"])
         for page in PdfReader(str(fichier)).pages:
             pdf.add_page(page)
-        o("stock.picking", "write", [b["id"]], {"carrier_tracking_ref": num})
         faits.append({"commande": b["origin"], "bon": b["name"], "client": p["Dest_Ad1"], "relais": relais,
                       "poids_g": p["Poids"], "n_colis": num})
-        dire(f"  OK     {b['origin']} → n° de colis {num} écrit dans le bon {b['name']}")
+        dire(f"  OK     {b['origin']} → n° de colis {num} " + (f"écrit dans le bon {b['name']}" if reel else "(fictif, rien n'est écrit dans Odoo)"))
     if not faits:
         return None, faits, echecs
     total = out / f"etiquettes-{stamp}.pdf"
@@ -294,7 +306,7 @@ def main():
     reel = c["reel"]
     print("=" * 70)
     print(f"  ÉTIQUETTES MONDIAL RELAY — base Odoo « {c['o'].db} »")
-    print("  " + ("VRAIES ÉTIQUETTES, payées sur le crédit prépayé" if reel else "SIMULATION : aucune étiquette payée, faux n° TEST"))
+    print("  " + ("VRAIES ÉTIQUETTES, payées sur le crédit prépayé" if reel else "SIMULATION : aucune étiquette payée, faux n° TEST, rien n'est écrit dans Odoo"))
     print("=" * 70)
 
     # Séparateur entre bons : virgule ou point-virgule suivi d'un nom de bon (la virgule décimale reste possible).

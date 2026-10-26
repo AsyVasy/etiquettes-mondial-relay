@@ -33,14 +33,10 @@ etat = {"bons": [], "actualisations": 0}
 
 
 class FauxOdoo:
-    """Remplace la connexion Odoo : seule l'écriture du n° de colis dans un bon est utilisée par l'outil."""
+    """Remplace la connexion Odoo : lectures des commandes et frais de port ; tout le reste répond True."""
     db = "demo"
 
     def __call__(self, model, meth, *a, **k):
-        if model == "stock.picking" and meth == "write":
-            for b in etat["bons"]:
-                if b["id"] in a[0]:
-                    b.update(a[1])
         if model == "stock.picking" and meth == "search_read":  # commande liée à chaque bon (même n° que le bon, pour la démo)
             ids = a[0][0][2]
             return [{"id": b["id"], "name": b["name"], "sale_id": [b["id"], b["origin"]]} for b in etat["bons"] if b["id"] in ids]
@@ -111,10 +107,24 @@ def tester(v):
     return res
 
 
+_creer = mr.creer
+
+
+def creer(c, prets, sortie, dire=print):
+    """Le vrai creer() (simulation : rien n'est écrit dans Odoo), puis les bons étiquetés reçoivent leur n° fictif
+    dans la démo, pour disparaître de la liste comme ils le feraient en production."""
+    total, faits, echecs = _creer(c, prets, sortie, dire)
+    for f in faits:
+        for b in etat["bons"]:
+            if b["name"] == f["bon"]:
+                b["carrier_tracking_ref"] = f["n_colis"]
+    return total, faits, echecs
+
+
 def activer(a):
     """Branche la démo : fonctions réseau remplacées, réglages et PDF dans le dossier « demo »."""
     DOSSIER.mkdir(exist_ok=True)
-    mr.ouvrir, mr.selection, mr.detail_relais = ouvrir, selection, detail_relais  # creer() et changer_relais() restent les vrais
+    mr.ouvrir, mr.selection, mr.detail_relais, mr.creer = ouvrir, selection, detail_relais, creer  # changer_relais() reste le vrai
     rg.ODOO_ENV, rg.MR_ENV, rg.tester = DOSSIER / "odoo.env", DOSSIER / "mondialrelay.env", tester
     if not rg.ODOO_ENV.exists():
         rg.ecrire({"ODOO_URL": "https://demo.exemple.fr", "ODOO_DB": "demo", "ODOO_BASE_PROD": "", "ODOO_USER": "demo@exemple.fr", "ODOO_API_KEY": "demo-1234",

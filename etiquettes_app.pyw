@@ -262,12 +262,12 @@ class Api:
         if self._pdf and Path(self._pdf).exists():
             os.startfile(self._pdf)
 
-    # --- historique : lecture du dossier « sortie » écrit par creer() (un sous-dossier AAAAMMJJ-HHMM par création) ---
+    # --- historique : lecture du dossier « sortie » écrit par creer() (un sous-dossier AAAAMMJJ-HHMMSS par création ; AAAAMMJJ-HHMM avant le 26/10/2026) ---
     def historique(self):
         sortie = Path(self._a.sortie)
         creations = []
         for d in sorted(sortie.iterdir(), reverse=True) if sortie.is_dir() else []:
-            if not (d.is_dir() and re.fullmatch(r"\d{8}-\d{4}", d.name)):
+            if not (d.is_dir() and re.fullmatch(r"\d{8}-\d{4}(\d{2})?", d.name)):
                 continue
             recap, pdf = d / f"recap-{d.name}.csv", d / f"etiquettes-{d.name}.pdf"
             try:

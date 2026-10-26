@@ -375,7 +375,7 @@
     $("#sous-titre").textContent = etat.lecture ? "Mode lecture seule : vous pouvez tout consulter et vérifier, mais aucune étiquette ne sera créée ni payée." : r.reel
       ? "Chaque étiquette créée est payée sur le crédit Mondial Relay. Tapez le poids pesé, emballage compris."
       : demo ? "Mode démo : colis inventés, rien n'est envoyé à Odoo ni à Mondial Relay. Entraînez-vous librement."
-      : `Base « ${r.db} » : rien n'est payé, fausses étiquettes, faux numéros TEST. Tapez le poids pesé, emballage compris.`;
+      : `Base « ${r.db} » : rien n'est payé, fausses étiquettes, faux numéros TEST, rien n'est écrit dans Odoo. Tapez le poids pesé, emballage compris.`;
     await actualiser();
   }
   function pastille(classe, texte) { const p = $("#pastille"); p.className = "pastille " + classe; p.textContent = texte; $("#point").className = "point " + classe; }
@@ -528,7 +528,7 @@
 
   // ---------- historique (dossier « sortie ») ----------
   const quand = (stamp) => {
-    const d = new Date(+stamp.slice(0, 4), +stamp.slice(4, 6) - 1, +stamp.slice(6, 8), +stamp.slice(9, 11), +stamp.slice(11, 13));
+    const d = new Date(+stamp.slice(0, 4), +stamp.slice(4, 6) - 1, +stamp.slice(6, 8), +stamp.slice(9, 11), +stamp.slice(11, 13), +(stamp.slice(13, 15) || 0));
     const t = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     return t.charAt(0).toUpperCase() + t.slice(1) + " à " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }).replace(":", " h ");
   };
@@ -662,7 +662,7 @@
       .concat(r.echecs.map((e) => `<div><b>${h(e.commande)}</b><span class="ko">pas faite : ${h(e.motif)}</span><span></span></div>`)).join("");
     feuille(`
       <h2>${r.faits.length ? (r.faits.length > 1 ? r.faits.length + " étiquettes créées" : "Étiquette créée") : "Aucune étiquette créée"}</h2>
-      <p>${r.faits.length ? "Le PDF s'est ouvert : imprimez-le et collez chaque étiquette sur son colis. Les numéros de colis sont écrits dans Odoo." : "Rien n'a été écrit dans Odoo."}</p>
+      <p>${r.faits.length ? "Le PDF s'est ouvert : imprimez-le et collez chaque étiquette sur son colis. " + (etat.reel ? "Les numéros de colis sont écrits dans Odoo." : "Simulation : rien n'a été écrit dans Odoo.") : "Rien n'a été écrit dans Odoo."}</p>
       <div class="recap">${lignes}</div>
       <div class="boutons">${r.pdf ? `<button class="btn" onclick="api('ouvrir_pdf')">Rouvrir le PDF</button>` : ""}<button class="btn principal" onclick="fermerFeuille(); actualiser()">OK</button></div>`);
   }
