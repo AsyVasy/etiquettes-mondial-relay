@@ -143,6 +143,8 @@
   .ligne-t .tranche-t { max-width: 120px; } .ligne-t .tranche-t input { font-weight: 600; }
   .ligne-t .suppr-t { height: 26px; padding: 0 8px; color: var(--ter); font-size: 16px; } .ligne-t .suppr-t:hover { color: var(--rouge); background: var(--rouge-bg); }
   .ligne-t.ajout-t { display: flex; min-height: 40px; }
+  .tranche-t.doublon { background: var(--rouge-bg); } .tranche-t.doublon input { color: var(--rouge); }
+  #erreur-tarifs { color: var(--rouge); font-size: 13px; padding: 8px 18px 4px; }
   .prix-t { display: flex; align-items: center; height: 32px; border-radius: 8px; background: var(--champ); border: 1.5px solid transparent; padding: 0 8px 0 4px; max-width: 110px; transition: border-color .12s, box-shadow .12s, background .12s; }
   .prix-t:focus-within { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-halo); }
   .prix-t input { flex: 1; min-width: 0; border: 0; background: transparent; outline: 0; text-align: right; font-size: 14px; font-variant-numeric: tabular-nums; padding: 0 4px 0 0; }
@@ -394,16 +396,37 @@
   }
   // la grille à l'écran : une ligne par tranche (poids modifiable, supprimable), une colonne par pays, « Ajouter une tranche » en bas
   function rendreGrille() {
-    const g = etat.grille, pays = Object.keys(g.pays), colonnes = `grid-template-columns: 150px repeat(${pays.length}, 1fr) 36px`;
+    const g = etat.grille, pays = Object.keys(g.pays), colonnes = `grid-template-columns: 150px repeat(${pays.length}, 1fr) 36px`, dbl = doublons(g.tranches);
     $("#tarifs").innerHTML = `
       <div class="tete tete-t" style="${colonnes}"><span>Poids jusqu'à (kg)</span>${pays.map((p) => `<span>${p}</span>`).join("")}<span></span></div>
       ${g.tranches.map((t, i) => `
         <div class="ligne-t" style="${colonnes}">
-          <span class="prix-t tranche-t"><input inputmode="decimal" id="t-poids-${i}" value="${t == null ? "" : String(t / 1000).replace(".", ",")}" placeholder="kg" title="Poids maximal de la tranche, en kg"><span>kg</span></span>
+          <span class="prix-t tranche-t${dbl.has(t) ? " doublon" : ""}"><input inputmode="decimal" id="t-poids-${i}" value="${t == null ? "" : String(t / 1000).replace(".", ",")}" placeholder="kg" title="Poids maximal de la tranche, en kg"
+            onblur="trierGrille(${i}, event.relatedTarget)" onkeydown="if (event.key === 'Enter') { event.preventDefault(); trierGrille(${i}, 'prix'); }"><span>kg</span></span>
           ${pays.map((p) => `<span class="prix-t"><input inputmode="decimal" id="t-${p}-${i}" value="${g.pays[p][i] == null ? "" : prixTexte(g.pays[p][i])}" placeholder="–"><span>€</span></span>`).join("")}
           <button class="btn texte suppr-t" title="Supprimer cette tranche" onclick="supprimerTranche(${i})">×</button>
         </div>`).join("")}
-      <div class="ligne-t ajout-t"><button class="btn texte" onclick="ajouterTranche()">+ Ajouter une tranche</button></div>`;
+      <div class="ligne-t ajout-t"><button class="btn texte" onclick="ajouterTranche()">+ Ajouter une tranche</button></div>
+      ${dbl.size ? `<div id="erreur-tarifs">${h(texteDoublons(dbl))}</div>` : ""}`;
+  }
+  const doublons = (tranches) => new Set(tranches.filter((t, i) => t != null && tranches.indexOf(t) !== i));
+  const texteDoublons = (dbl) => `Deux tranches ont le même poids (${[...dbl].map((t) => String(t / 1000).replace(".", ",")).join(", ")} kg) : corrigez ou supprimez l'une des deux.`;
+  // en quittant la case poids : la ligne glisse à sa place (la ligne vide reste en bas) et les doublons passent en rouge ;
+  // le focus suit la ligne déplacée (« prix » = son premier prix, après Entrée ; sinon la case que l'utilisateur visait)
+  function trierGrille(i, suite) {
+    const e = lireGrilleEcran(), noms = Object.keys(e.pays);
+    const ordre = e.tranches.map((_, k) => k).sort((a, b) => (e.tranches[a] ?? Infinity) - (e.tranches[b] ?? Infinity) || a - b);
+    const bouge = ordre.some((k, idx) => k !== idx), dbl = doublons(e.tranches), avant = doublons(etat.grille.tranches);
+    if (!bouge && dbl.size === avant.size && [...dbl].every((t) => avant.has(t))) {
+      if (suite === "prix") { const c = $(`#t-${noms[0]}-${i}`); if (c) c.focus(); }
+      return;
+    }
+    const pays = {}; for (const p of noms) pays[p] = ordre.map((k) => e.pays[p][k]);
+    etat.grille = { ...etat.grille, tranches: ordre.map((k) => e.tranches[k]), pays }; rendreGrille();
+    let cible = null;
+    if (suite === "prix") cible = $(`#t-${noms[0]}-${ordre.indexOf(i)}`);
+    else if (suite && suite.id) { const m = /^t-([A-Za-z]+)-([0-9]+)$/.exec(suite.id); if (m) cible = $(`#t-${m[1]}-${ordre.indexOf(+m[2])}`); }
+    if (cible) cible.focus();
   }
   function lireGrilleEcran() {
     // ce qui est à l'écran → {date, tranches (g), pays}, sans tri ni contrôle (le Python s'en charge à l'enregistrement)
@@ -520,6 +543,7 @@
   async function enregistrerTarifs() {
     const e = lireGrilleEcran();
     if (e.tranches.some((t) => t == null)) { erreur("Chaque tranche doit avoir un poids maximal en kg (ou supprimez la ligne vide)."); return; }
+    const dbl = doublons(e.tranches); if (dbl.size) { erreur(texteDoublons(dbl)); return; }
     const r = await api("tarifs_enregistrer", { date: e.date, tranches: e.tranches, pays: e.pays });
     if (!r.ok) { erreur(r.erreur); return; }
     feuille(`<h2>Grille enregistrée</h2><p>Les estimations apparaîtront dans la confirmation et dans l'historique pour les cas couverts.</p>
