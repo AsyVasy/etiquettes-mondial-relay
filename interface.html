@@ -138,13 +138,14 @@
   .note-grille { color: var(--sec); font-size: 12.5px; flex-basis: 100%; }
   .date-grille { display: flex; align-items: center; gap: 10px; color: var(--sec); font-size: 13.5px; white-space: nowrap; }
   .date-grille .entree { width: 160px; height: 34px; }
-  .tete-t, .ligne-t { display: grid; gap: 10px; align-items: center; padding: 0 18px; }
+  .tete-t, .ligne-t { display: grid; gap: 8px; align-items: center; padding: 0 14px; }
   .ligne-t { min-height: 40px; border-top: .5px solid var(--sep); }
   .ligne-t .tranche-t { max-width: 120px; } .ligne-t .tranche-t input { font-weight: 600; }
   .ligne-t .suppr-t { height: 26px; padding: 0 8px; color: var(--ter); font-size: 16px; } .ligne-t .suppr-t:hover { color: var(--rouge); background: var(--rouge-bg); }
-  .ligne-t.ajout-t { display: flex; min-height: 40px; }
+  /* pied collé en bas de la zone qui défile : « Ajouter une tranche » et le message de doublon restent visibles */
+  .ligne-t.ajout-t { display: flex; align-items: center; gap: 14px; min-height: 40px; position: sticky; bottom: 0; z-index: 1; background: var(--carte); border-radius: 0 0 var(--r) var(--r); }
   .tranche-t.doublon { background: var(--rouge-bg); } .tranche-t.doublon input { color: var(--rouge); }
-  #erreur-tarifs { color: var(--rouge); font-size: 13px; padding: 8px 18px 4px; }
+  #erreur-tarifs { color: var(--rouge); font-size: 13px; }
   .prix-t { display: flex; align-items: center; height: 32px; border-radius: 8px; background: var(--champ); border: 1.5px solid transparent; padding: 0 8px 0 4px; max-width: 110px; transition: border-color .12s, box-shadow .12s, background .12s; }
   .prix-t:focus-within { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-halo); }
   .prix-t input { flex: 1; min-width: 0; border: 0; background: transparent; outline: 0; text-align: right; font-size: 14px; font-variant-numeric: tabular-nums; padding: 0 4px 0 0; }
@@ -396,7 +397,7 @@
   }
   // la grille à l'écran : une ligne par tranche (poids modifiable, supprimable), une colonne par pays, « Ajouter une tranche » en bas
   function rendreGrille() {
-    const g = etat.grille, pays = Object.keys(g.pays), colonnes = `grid-template-columns: 150px repeat(${pays.length}, 1fr) 36px`, dbl = doublons(g.tranches);
+    const g = etat.grille, pays = Object.keys(g.pays), colonnes = `grid-template-columns: 120px repeat(${pays.length}, minmax(0, 1fr)) 32px`, dbl = doublons(g.tranches);
     $("#tarifs").innerHTML = `
       <div class="tete tete-t" style="${colonnes}"><span>Poids jusqu'à (kg)</span>${pays.map((p) => `<span>${p}</span>`).join("")}<span></span></div>
       ${g.tranches.map((t, i) => `
@@ -406,8 +407,7 @@
           ${pays.map((p) => `<span class="prix-t"><input inputmode="decimal" id="t-${p}-${i}" value="${g.pays[p][i] == null ? "" : prixTexte(g.pays[p][i])}" placeholder="–"><span>€</span></span>`).join("")}
           <button class="btn texte suppr-t" title="Supprimer cette tranche" onclick="supprimerTranche(${i})">×</button>
         </div>`).join("")}
-      <div class="ligne-t ajout-t"><button class="btn texte" onclick="ajouterTranche()">+ Ajouter une tranche</button></div>
-      ${dbl.size ? `<div id="erreur-tarifs">${h(texteDoublons(dbl))}</div>` : ""}`;
+      <div class="ligne-t ajout-t"><button class="btn texte" onclick="ajouterTranche()">+ Ajouter une tranche</button>${dbl.size ? `<span id="erreur-tarifs">${h(texteDoublons(dbl))}</span>` : ""}</div>`;
   }
   const doublons = (tranches) => new Set(tranches.filter((t, i) => t != null && tranches.indexOf(t) !== i));
   const texteDoublons = (dbl) => `Deux tranches ont le même poids (${[...dbl].map((t) => String(t / 1000).replace(".", ",")).join(", ")} kg) : corrigez ou supprimez l'une des deux.`;
@@ -439,7 +439,7 @@
     const e = lireGrilleEcran();
     e.tranches.push(null); for (const p of Object.keys(e.pays)) e.pays[p].push(null);
     etat.grille = { ...etat.grille, tranches: e.tranches, pays: e.pays }; rendreGrille();
-    const dernier = $(`#t-poids-${e.tranches.length - 1}`); if (dernier) dernier.focus();
+    const dernier = $(`#t-poids-${e.tranches.length - 1}`); if (dernier) { dernier.scrollIntoView({ block: "center" }); dernier.focus(); }
   }
   function supprimerTranche(i) {
     const e = lireGrilleEcran();

@@ -70,6 +70,7 @@ def scenario(w):
     verif("même poids" in ev(w, "(document.querySelector('.feuille pre') || {textContent: ''}).textContent") and appel(w, "tarifs_lire")["tranches"] == feuille["tranches"], "enregistrement refusé tant que le doublon existe, grille inchangée")
     ev(w, "fermerFeuille(); supprimerTranche(1); 1"); time.sleep(0.5)
     verif(ev(w, "document.querySelectorAll('#tarifs .tranche-t.doublon').length + '|' + document.querySelectorAll('#tarifs .ligne-t').length") == "0|11", "doublon supprimé : plus rien en rouge, 10 tranches")
+    verif(ev(w, "(() => { const s = getComputedStyle(document.querySelector('#tarifs .ajout-t')); const l = document.querySelector('#tarifs'); return s.position + '|' + s.bottom + '|' + (l.scrollWidth <= l.clientWidth); })()") == "sticky|0px|true", "pied « Ajouter une tranche » collé en bas, aucun défilement horizontal")
     ev(w, "enregistrerTarifs(); 1"); time.sleep(1.2); ev(w, "fermerFeuille(); 1")
     g = appel(w, "tarifs_lire"); verif(g["tranches"][-1] == 35000 and g["tranches"][0] == 2000 and g["pays"]["FR"][-1] == 40 and g["pays"]["FR"][0] == 8.5, f"enregistrement depuis l'écran : tranches {g['tranches'][0]}…{g['tranches'][-1]}, FR {g['pays']['FR'][0]}…{g['pays']['FR'][-1]}")
     ev(w, "document.querySelector('#t-palier').value = '2'; chargerPublique(); 1"); time.sleep(1.2)
