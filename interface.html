@@ -297,6 +297,7 @@
   <div class="pied">
     <div class="etat" id="etat-reglages"></div>
     <button class="btn texte" id="b-grille" onclick="ouvrirTarifs()">Grille tarifaire (facultatif)…</button>
+    <button class="btn texte" id="b-rapport" onclick="rapport()">Rapport pour l'administrateur…</button>
     <button class="btn" id="b-tester" onclick="testerReglages()" style="margin-left:auto">Tester les connexions</button>
     <button class="btn principal" id="b-enregistrer" onclick="enregistrerReglages()">Enregistrer</button>
   </div>
@@ -350,7 +351,7 @@
   }
   function occuper(message) {
     etat.occupe = !!message;
-    for (const id of ["seg-colis", "seg-historique", "seg-reglages", "b-actualiser", "b-creer", "b-tester", "b-enregistrer", "b-grille", "b-tarifs", "b-publique"]) { const b = $("#" + id); if (b) b.disabled = etat.occupe || (id === "b-creer" && (!etat.pret || etat.lecture)); }
+    for (const id of ["seg-colis", "seg-historique", "seg-reglages", "b-actualiser", "b-creer", "b-tester", "b-enregistrer", "b-grille", "b-rapport", "b-tarifs", "b-publique"]) { const b = $("#" + id); if (b) b.disabled = etat.occupe || (id === "b-creer" && (!etat.pret || etat.lecture)); }
     $("#etat").innerHTML = message ? `<span class="rouage"></span>${h(message)}` : "";
     $("#etat-reglages").innerHTML = message ? `<span class="rouage"></span>${h(message)}` : "";
     if (!message) majEtat();
@@ -722,7 +723,17 @@
       <h2>Un problème est survenu</h2>
       <pre>${h(texte)}</pre>
       <p style="margin-top:12px">Si ça recommence : contactez l'administrateur de l'outil.</p>
-      <div class="boutons">${proposerReglages ? `<button class="btn" onclick="fermerFeuille(); ouvrirReglages(false)">Ouvrir les réglages</button><button class="btn" onclick="fermerFeuille(); connecter()">Réessayer</button>` : ""}<button class="btn principal" onclick="fermerFeuille()">OK</button></div>`);
+      <div class="boutons">${proposerReglages ? `<button class="btn" onclick="fermerFeuille(); ouvrirReglages(false)">Ouvrir les réglages</button><button class="btn" onclick="fermerFeuille(); connecter()">Réessayer</button>` : ""}<button class="btn" onclick="rapport()">Rapport pour l'administrateur</button><button class="btn principal" onclick="fermerFeuille()">OK</button></div>`);
+  }
+  // rapport PDF (sans clé ni nom de client) écrit dans « sortie », à joindre à un message pour l'administrateur
+  async function rapport() {
+    const r = await api("rapport");
+    if (!r.ok) { erreur(r.erreur); return; }
+    const i = (etat.chemins = etat.chemins || []).push(r.dossier) - 1;
+    feuille(`<h2>Rapport enregistré</h2>
+      <p>Le PDF s'est ouvert. Il ne contient ni clé ni nom de client : joignez-le à votre message pour l'administrateur de l'outil.</p>
+      <pre>${h(r.chemin)}</pre>
+      <div class="boutons"><button class="btn" onclick="ouvrirChemin(${i})">Ouvrir le dossier</button><button class="btn principal" onclick="fermerFeuille()">OK</button></div>`);
   }
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;

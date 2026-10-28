@@ -141,6 +141,16 @@ def scenario(w):
     time.sleep(1); verif(ev(w, "window.__e") == "Réglages", "segment Réglages actif")
     ev(w, "fermerReglages(); 1"); time.sleep(2)
     verif(ev(w, "document.querySelector('#ecran-colis').classList.contains('cache')") is False, "retour à l'écran Colis")
+    print("9. journal et rapport", flush=True)
+    j = D / "demo" / "journal.log"; jt = j.read_text(encoding="utf-8") if j.exists() else ""
+    verif("démarrage v" in jt and "création : 3 faite(s), 1 refus" in jt and "test des connexions" in jt and "ÉCHEC" in jt, f"journal.log tenu en démo : {len(jt.splitlines())} lignes")
+    from pypdf import PdfReader
+    r = appel(w, "rapport"); pdf = Path(r.get("chemin", "")); texte = "".join(p.extract_text() or "" for p in PdfReader(str(pdf)).pages) if r.get("ok") and pdf.exists() else ""
+    verif(r.get("ok") and pdf.stat().st_size > 1500 and "Environnement" in texte and "WH/OUT/00127" in texte and "journal" in texte.lower()
+          and "demo-1234" not in texte and "MARIE DUPONT" not in texte, f"rapport PDF écrit et lisible, sans clé ni nom de client : {pdf.name if r.get('ok') else r}")
+    ev(w, "rapport(); 1"); time.sleep(1.5)
+    verif(ev(w, "(document.querySelector('.feuille h2') || {textContent: ''}).textContent") == "Rapport enregistré", "bouton Rapport : feuille de confirmation")
+    ev(w, "fermerFeuille(); 1")
     print("RÉSULTAT :", "tout passe" if ok else "des contrôles échouent", flush=True)
     w.destroy()
 

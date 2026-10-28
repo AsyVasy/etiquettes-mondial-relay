@@ -5,7 +5,8 @@ et de reglages.pyw (fichiers .env, test des connexions). Même comportement que 
 Si pywebview ou WebView2 manque, l'interface classique (tkinter) s'ouvre à la place.
 Usage : pyw -3 etiquettes_app.pyw [--odoo odoo.env] [--mr mondialrelay.env] [--bons WH/OUT/1,WH/OUT/2] [--installation] [--demo] [--lecture-seule]
 """
-import argparse, base64, csv, ctypes, io, json, os, re, sys, threading
+import argparse, base64, csv, ctypes, io, json, os, platform, re, sys, threading
+from datetime import datetime
 from pathlib import Path
 
 ICI = Path(__file__).resolve().parent
@@ -31,6 +32,54 @@ GRILLE_PUBLIQUE = {
     "DE": [5.82, 7.52, 8.62, 11.82, 16.83, 25.77, None, None],
 }
 TITRE = "Étiquettes Mondial Relay"
+VERSION = "2026-10-28"
+JOURNAL_LIGNES = 400  # lignes gardées dans journal.log
+
+
+def journal(a, texte):
+    """Journal borné, à côté des réglages (dossier « demo » en mode démo) : date, heure, texte. Jamais de clé."""
+    try:
+        chemin = Path(a.odoo).parent / "journal.log"
+        lignes = chemin.read_text(encoding="utf-8").splitlines() if chemin.exists() else []
+        lignes.append(f"{datetime.now():%Y-%m-%d %H:%M:%S}  {texte}")
+        chemin.write_text("\n".join(lignes[-JOURNAL_LIGNES:]) + "\n", encoding="utf-8")
+    except OSError:
+        pass
+
+
+def ecrire_pdf(chemin, lignes, titre):
+    """PDF texte de plusieurs pages (Courier, sans bibliothèque) : lignes = textes ou (texte, gras)."""
+    def esc(s):
+        s = str(s).replace("→", "->").replace("…", "...").replace("–", "-")
+        return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+    pages, page, y = [], [f"BT /F2 14 Tf 40 800 Td ({esc(titre)}) Tj ET"], 780
+    for l in lignes:
+        texte, gras = l if isinstance(l, tuple) else (l, False)
+        for m in [texte[i:i + 95] for i in range(0, len(texte), 95)] or [""]:
+            if y < 50:
+                pages.append(page); page, y = [], 800
+            y -= 12
+            if m:
+                page.append(f"BT /{'F2' if gras else 'F1'} 9 Tf 40 {y} Td ({esc(m)}) Tj ET")
+    pages.append(page)
+    objs = [b"<< /Type /Catalog /Pages 2 0 R >>", None,
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>"]
+    kids = []
+    for flux in pages:
+        contenu = "\n".join(flux).encode("cp1252", "replace")
+        objs.append(b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> "
+                    b"/Contents " + str(len(objs) + 2).encode() + b" 0 R >>")
+        kids.append(len(objs))
+        objs.append(b"<< /Length " + str(len(contenu)).encode() + b" >>\nstream\n" + contenu + b"\nendstream")
+    objs[1] = b"<< /Type /Pages /Kids [" + b" ".join(f"{k} 0 R".encode() for k in kids) + b"] /Count " + str(len(kids)).encode() + b" >>"
+    out, pos = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"), []
+    for i, o in enumerate(objs, 1):
+        pos.append(len(out)); out += f"{i} 0 obj\n".encode() + o + b"\nendobj\n"
+    xref = len(out)
+    out += f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode() + b"".join(f"{p:010d} 00000 n \n".encode() for p in pos)
+    out += f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+    Path(chemin).write_bytes(out)
 
 
 def texte_erreur(e):
@@ -51,6 +100,9 @@ class Api:
         self._a, self._c, self._fenetre = a, None, None
         self._prets, self._refus, self._relais_changes, self._pdf = [], [], {}, None
         self._verrou = threading.Lock()
+
+    def _j(self, texte):
+        journal(self._a, texte)
 
     # --- fenêtre ---
     def fermer(self):
@@ -150,9 +202,12 @@ class Api:
         try:
             with self._verrou:
                 self._c = mr.ouvrir(self._a.odoo, self._a.mr)
+            self._j(f"démarrage v{VERSION} : base « {self._c['o'].db} », " + ("PRODUCTION" if self._c["reel"] else "simulation")
+                    + (", lecture seule" if self._a.lecture_seule else ""))
             return {"ok": True, "reel": self._c["reel"], "db": self._c["o"].db}
         except BaseException as e:  # SystemExit des garde-fous compris
             self._c = None
+            self._j(f"démarrage impossible : {texte_erreur(e)}")
             return {"ok": False, "erreur": texte_erreur(e)}
 
     def lister(self):
@@ -160,6 +215,7 @@ class Api:
             with self._verrou:
                 self._prets, self._refus = mr.selection(self._c, self._a.bons, dict(self._relais_changes))
                 self._frais = self._frais_port([b for b, _, _ in self._prets])
+            self._j(f"liste : {len(self._prets)} à étiqueter, {len(self._refus)} refusé(s)" + "".join(f" | {b['name']} : {why}" for b, why in self._refus))
             return {"ok": True,
                     "prets": [{"bon": b["name"], "commande": b["origin"] or b["name"], "client": p["Dest_Ad1"][:28],
                                "relais_num": p["LIV_Rel"], "relais": relais, "change": b["name"] in self._relais_changes,
@@ -167,6 +223,7 @@ class Api:
                               for b, p, relais in self._prets],
                     "refus": [{"bon": b["name"], "commande": b["origin"] or "", "motif": why} for b, why in self._refus]}
         except BaseException as e:
+            self._j(f"liste : erreur {texte_erreur(e)}")
             return {"ok": False, "erreur": texte_erreur(e)}
 
     def _frais_port(self, bons):
@@ -203,6 +260,7 @@ class Api:
             b, p, _ = self._ligne(bon)
             with self._verrou:
                 ok, info = mr.changer_relais(self._c, p, valeur)
+            self._j(f"relais {bon} -> {valeur} : " + ("OK" if ok else info))
             if not ok:
                 return {"ok": False, "info": info}
             self._relais_changes[bon] = valeur
@@ -242,8 +300,11 @@ class Api:
                 b, p, relais = self._ligne(l["bon"])
                 mr.mettre_poids(p, v["kg"][l["bon"]])
                 prets.append((b, p, relais))
+            self._j(f"création demandée : {len(prets)} colis, " + ", ".join(f"{b['name']} {p['Poids']} g" for b, p, _ in prets))
             with self._verrou:
                 total, faits, echecs = mr.creer(self._c, prets, self._a.sortie, dire=lambda *_: None)
+            self._j(f"création : {len(faits)} faite(s), {len(echecs)} refus" + "".join(f" | {f['bon']} -> n° {f['n_colis']}" for f in faits)
+                    + "".join(f" | {b['name']} : {why}" for b, why in echecs))
             self._pdf = str(total) if total else None
             if total:
                 # complément pour l'Historique (pays du relais et prix estimé par bon) : fichier à part, le moteur n'y touche pas
@@ -256,6 +317,7 @@ class Api:
             return {"ok": True, "pdf": self._pdf, "faits": faits,
                     "echecs": [{"bon": b["name"], "commande": b["origin"] or b["name"], "motif": why} for b, why in echecs]}
         except BaseException as e:
+            self._j(f"création : erreur {texte_erreur(e)}")
             return {"ok": False, "erreur": texte_erreur(e)}
 
     def ouvrir_pdf(self):
@@ -287,8 +349,8 @@ class Api:
 
     def ouvrir_fichier(self, chemin):
         """Ouvre un PDF ou un dossier de l'historique (seulement à l'intérieur du dossier « sortie »)."""
-        p = Path(chemin).resolve()
-        if Path(self._a.sortie).resolve() in p.parents and p.exists():
+        p, sortie = Path(chemin).resolve(), Path(self._a.sortie).resolve()
+        if (p == sortie or sortie in p.parents) and p.exists():
             os.startfile(p)
 
     # --- réglages (même logique que la fenêtre reglages.pyw) ---
@@ -302,14 +364,82 @@ class Api:
         return rg.verifier(v)
 
     def reglages_tester(self, v):
-        return [[ok, t] for ok, t in rg.tester(v)]
+        res = rg.tester(v)
+        self._j("test des connexions : " + " | ".join(("OK " + t.split(" : ")[0]) if ok else ("ÉCHEC " + t) for ok, t in res))
+        return [[ok, t] for ok, t in res]
 
     def reglages_enregistrer(self, v):
         try:
             rg.ecrire(v)
+            self._j("réglages enregistrés")
             return {"ok": True}
         except BaseException as e:
+            self._j(f"réglages : erreur {texte_erreur(e)}")
             return {"ok": False, "erreur": texte_erreur(e)}
+
+    # --- rapport pour l'administrateur : PDF sans clé ni nom de client, à joindre à un message ---
+    def rapport(self):
+        try:
+            sortie = Path(self._a.sortie); sortie.mkdir(parents=True, exist_ok=True)
+            chemin = sortie / f"rapport-{datetime.now():%Y%m%d-%H%M%S}.pdf"
+            ecrire_pdf(chemin, self._rapport_lignes(), f"{TITRE} - rapport pour l'administrateur")
+            self._j(f"rapport écrit : {chemin.name}")
+            os.startfile(chemin)
+            return {"ok": True, "chemin": str(chemin), "dossier": str(sortie)}
+        except BaseException as e:
+            return {"ok": False, "erreur": texte_erreur(e)}
+
+    def _rapport_lignes(self):
+        a, L = self._a, []
+        def titre(t): L.extend(["", (t, True)])
+        L.append(f"Établi le {datetime.now():%d/%m/%Y à %H:%M}. Sans clé ni nom de client : peut être transmis tel quel.")
+        titre("Environnement")
+        from importlib.metadata import version as version_paquet
+        versions = {}
+        for nom in ("pypdf", "pywebview"):
+            try:
+                versions[nom] = version_paquet(nom)
+            except Exception:
+                versions[nom] = "absent"
+        modes = [m for m, on in (("démo", a.demo), ("lecture seule", a.lecture_seule), ("installation", a.installation)) if on]
+        L += [f"Outil : version {VERSION}, dossier {ICI}",
+              f"Python {sys.version.split()[0]}, pypdf {versions['pypdf']}, pywebview {versions['pywebview']}, {platform.platform()}",
+              "Mode : " + (", ".join(modes) if modes else "normal")]
+        titre("Réglages (valeurs secrètes et personnelles masquées)")
+        v = {**rg.lire(rg.ODOO_ENV), **rg.lire(rg.MR_ENV)}
+        secrets, masques = {"ODOO_API_KEY", "MR_CLE_PRIVEE"}, {"ODOO_USER", "MR_EXPE_TEL", "MR_EXPE_MAIL"}
+        for cle in [c[0] for c in rg.CHAMPS_ODOO + rg.CHAMPS_MR]:
+            val = v.get(cle, "")
+            if cle in secrets:
+                L.append(f"{cle} = " + (f"renseignée ({len(val)} caractères)" if val else "(vide)"))
+            elif cle in masques:
+                L.append(f"{cle} = " + ("renseigné" if val else "(vide)"))
+            else:
+                L.append(f"{cle} = {val or '(vide)'}")
+        if self._c:
+            L.append(f"Connexion en cours : base « {self._c['o'].db} », " + ("PRODUCTION, étiquettes payées" if self._c["reel"] else "simulation"))
+        titre("Colis affichés en ce moment")
+        L.append(f"{len(self._prets)} à étiqueter : " + ", ".join(f"{b['name']} ({b['origin']})" for b, _, _ in self._prets) if self._prets else "aucun colis à étiqueter")
+        for b, why in self._refus:
+            L.append(f"refusé {b['name']} ({b['origin'] or '-'}) : {why}")
+        titre("Dernières créations (dossier « sortie »)")
+        sortie = Path(a.sortie)
+        dossiers = sorted((d for d in sortie.iterdir() if d.is_dir() and re.fullmatch(r"\d{8}-\d{4}(\d{2})?", d.name)), reverse=True)[:8] if sortie.is_dir() else []
+        if not dossiers:
+            L.append("aucune création")
+        for d in dossiers:
+            L.append((d.name, True))
+            for nom, colonnes in (("recap", ("bon", "commande", "poids_g", "n_colis")),
+                                  ("refus", ("bon", "commande", "stat", "poids_g", "relais", "pays_relais", "motif"))):
+                f = d / f"{nom}-{d.name}.csv"
+                if f.exists():
+                    with open(f, encoding="utf-8-sig", newline="") as fh:
+                        for r in csv.DictReader(fh, delimiter=";"):
+                            L.append(f"  {nom} : " + "  ".join(f"{c} {r.get(c, '')}" for c in colonnes))
+        titre("Journal (dernières lignes)")
+        j = Path(a.odoo).parent / "journal.log"
+        L += j.read_text(encoding="utf-8").splitlines()[-150:] if j.exists() else ["(pas de journal)"]
+        return L
 
 
 def arrondir(fenetre):

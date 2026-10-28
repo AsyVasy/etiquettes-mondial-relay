@@ -22,6 +22,8 @@ Chaque jour
 - « solde du compte prépayé insuffisant » : rechargez le crédit sur mondialrelay.fr, puis recommencez.
 - N'achetez plus ces étiquettes à la main sur mondialrelay.fr : vous les paieriez deux fois.
 - Le dossier « sortie » garde les PDF (données clients : ne pas les partager).
+- En cas de problème : Réglages > « Rapport pour l'administrateur » crée un PDF dans « sortie »,
+  sans clé ni nom de client, à joindre à votre message. Le fichier journal.log garde les derniers événements.
 - Un réglage à changer (clé expirée, imprimante) : « Réglages » en haut de la fenêtre.
 - La fenêtre moderne ne s'ouvre pas : l'interface classique s'ouvre à la place, mêmes fonctions.
 - S'entraîner sans rien envoyer ni payer : « Etiquettes - mode demo.bat » (colis inventés, PDF de simulation).

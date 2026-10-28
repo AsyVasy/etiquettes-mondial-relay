@@ -15,6 +15,7 @@ window.pywebview = { api: {
   tarifs_publique: () => P({ date: "2026-01-07", tranches: [500, 1000, 2000, 4000, 10000, 20000, 25000, 30000], pays: {}, paliers: ["0 à 9 colis par mois (prix public)", "10 à 49 colis par mois (-4 %)", "50 à 99 colis par mois (-7 %)", "100 à 249 colis par mois (-9 %)", "250 colis et plus par mois (-10 %)"] }),
   tarifs_enregistrer: () => P({ ok: true }),
   creer: () => P({ ok: true, pdf: "x", faits: [], echecs: [] }),
+  rapport: () => P({ ok: true, chemin: "C:/EtiquettesMR/sortie/rapport-20261028-120000.pdf", dossier: "C:/EtiquettesMR/sortie" }),
   reglages_lire: () => P({ valeurs: { ODOO_URL: "https://odoo.exemple.fr", ODOO_DB: "ma-boutique-prod", ODOO_USER: "prenom.nom@exemple.fr", ODOO_API_KEY: "0123456789abcdef0123456789abcdef01234567", MR_ENSEIGNE: "BDTEST13", MR_CLE_PRIVEE: "exemple", MR_EXPE_NOM: "MA BOUTIQUE", MR_EXPE_TEL: "0199001234", MR_EXPE_MAIL: "expedition@exemple.fr", MR_FORMAT: "A4", MR_DEPUIS: "2026-10-22" }, odoo: CH_ODOO, mr: CH_MR }),
   reglages_verifier: () => P([]),
   reglages_tester: () => P([[true, "Odoo : connecté en tant que Prénom Nom."], [true, "Odoo : base de PRODUCTION → vraies étiquettes, payées."], [true, "Odoo : droit d'écrire les n° de colis dans les bons : OK."], [false, "Mondial Relay : ÉCHEC — STAT 97 clé de sécurité invalide."]]),
