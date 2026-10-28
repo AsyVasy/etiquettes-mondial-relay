@@ -15,10 +15,10 @@ def ev(w, js, t=10):
     th = threading.Thread(target=f, daemon=True); th.start(); th.join(t)
     return res.get("r", "BLOQUÉ")
 
-def appel(w, nom, *args):
-    """Appelle pywebview.api.<nom>(...) depuis la page et renvoie le résultat JSON."""
+def appel(w, nom, *args, attente=10):
+    """Appelle pywebview.api.<nom>(...) depuis la page et renvoie le résultat JSON (attente en secondes)."""
     ev(w, f"window.__r = null; pywebview.api.{nom}({', '.join(json.dumps(a, ensure_ascii=False) for a in args)}).then(r => {{ window.__r = JSON.stringify(r === undefined ? null : r); }})")
-    for _ in range(50):
+    for _ in range(int(attente / 0.2)):
         r = ev(w, "window.__r")
         if r is not None: return json.loads(r)
         time.sleep(0.2)
@@ -144,11 +144,16 @@ def scenario(w):
     print("9. journal et rapport", flush=True)
     j = D / "demo" / "journal.log"; jt = j.read_text(encoding="utf-8") if j.exists() else ""
     verif("démarrage v" in jt and "création : 3 faite(s), 1 refus" in jt and "test des connexions" in jt and "ÉCHEC" in jt, f"journal.log tenu en démo : {len(jt.splitlines())} lignes")
+    verif("WH/OUT/00118 tapé « 1,25 » -> 1250 g (Odoo 0 kg)" in jt, "journal : poids tel que tapé, grammes envoyés et poids Odoo")
     from pypdf import PdfReader
-    r = appel(w, "rapport"); pdf = Path(r.get("chemin", "")); texte = "".join(p.extract_text() or "" for p in PdfReader(str(pdf)).pages) if r.get("ok") and pdf.exists() else ""
+    r = appel(w, "rapport", attente=40); pdf = Path(r.get("chemin", "")); texte = "".join(p.extract_text() or "" for p in PdfReader(str(pdf)).pages) if r.get("ok") and pdf.exists() else ""
     verif(r.get("ok") and pdf.stat().st_size > 1500 and "Environnement" in texte and "WH/OUT/00127" in texte and "journal" in texte.lower()
           and "demo-1234" not in texte and "MARIE DUPONT" not in texte, f"rapport PDF écrit et lisible, sans clé ni nom de client : {pdf.name if r.get('ok') else r}")
-    ev(w, "rapport(); 1"); time.sleep(1.5)
+    verif("Joignabilité" in texte and "Mondial Relay : répond" in texte and "Odoo : injoignable" in texte, "rapport : joignabilité testée (Mondial Relay répond, l'Odoo de démo n'existe pas)")
+    ev(w, "rapport(); 1")
+    for _ in range(80):  # le rapport teste la joignabilité (jusqu'à 12 s) avant d'afficher la feuille
+        time.sleep(0.5)
+        if ev(w, "(document.querySelector('.feuille h2') || {textContent: ''}).textContent") == "Rapport enregistré": break
     verif(ev(w, "(document.querySelector('.feuille h2') || {textContent: ''}).textContent") == "Rapport enregistré", "bouton Rapport : feuille de confirmation")
     ev(w, "fermerFeuille(); 1")
     print("RÉSULTAT :", "tout passe" if ok else "des contrôles échouent", flush=True)

@@ -113,7 +113,10 @@ def soap(methode, champs, p, cle, extra=""):
         "Content-Type": "text/xml; charset=utf-8", "SOAPAction": f'"{NS}{methode}"'})
     with urllib.request.urlopen(req, timeout=60) as r:
         res = ET.fromstring(r.read()).find(f".//{{{NS}}}{methode}Result")
-    return lambda t: (res.findtext(f"{{{NS}}}{t}") or "").strip()
+    def get(t):
+        return (res.findtext(f"{{{NS}}}{t}") or "").strip()
+    get.brut = re.sub(r"\s+", " ", ET.tostring(res, encoding="unicode")) if res is not None else ""  # réponse complète, pour les refus
+    return get
 
 
 def detail_relais(ens, cle, num, pays):
@@ -245,16 +248,16 @@ def creer(c, prets, sortie, dire=print):
     out = Path(sortie) / stamp
     out.mkdir(parents=True, exist_ok=True)
     fmt = mr.get("MR_FORMAT", "A4")
-    pdf, faits, refus = PdfWriter(), [], []  # refus : (bon, données envoyées, STAT, motif)
-    def echec(b, p, stat, why):
-        refus.append((b, p, stat, why)); dire(f"  ÉCHEC  {b['origin']} : {why}")
+    pdf, faits, refus = PdfWriter(), [], []  # refus : (bon, données envoyées, STAT, motif, réponse brute)
+    def echec(b, p, stat, why, brut=""):
+        refus.append((b, p, stat, why, brut)); dire(f"  ÉCHEC  {b['origin']} : {why}")
     for b, p, relais in prets:
         fichier = out / f"{b['name'].replace('/', '-')}.pdf"
         if reel:
             get = soap("WSI2_CreationEtiquette", CHAMPS, p, c["cle"], "<Texte></Texte>")
             stat, num, url = get("STAT"), get("ExpeditionNum"), get("URL_Etiquette")
             if stat != "0":
-                echec(b, p, stat, f"Mondial Relay STAT {stat} {STAT.get(stat, 'voir la doc')} (poids envoyé {p['Poids']} g)"); continue
+                echec(b, p, stat, f"Mondial Relay STAT {stat} {STAT.get(stat, 'voir la doc')} (poids envoyé {p['Poids']} g)", getattr(get, "brut", "")); continue
             try:  # tout de suite : l'étiquette est payée, le bon ne doit plus jamais être reproposé
                 o("stock.picking", "write", [b["id"]], {"carrier_tracking_ref": num})
             except Exception as e:
@@ -282,10 +285,10 @@ def creer(c, prets, sortie, dire=print):
     if refus:  # trace des refus (sans clé) : ce qui a été envoyé, pour comprendre un STAT sans deviner
         with open(out / f"refus-{stamp}.csv", "w", newline="", encoding="utf-8-sig") as f:
             w = csv.writer(f, delimiter=";")
-            w.writerow(["commande", "bon", "stat", "poids_g", "relais", "pays_relais", "cp", "pays", "motif"])
-            w.writerows([b["origin"], b["name"], stat, p.get("Poids"), p.get("LIV_Rel"), p.get("LIV_Rel_Pays"), p.get("Dest_CP"), p.get("Dest_Pays"), why]
-                        for b, p, stat, why in refus)
-    echecs = [(b, why) for b, _, _, why in refus]
+            w.writerow(["commande", "bon", "stat", "poids_g", "relais", "pays_relais", "cp", "pays", "motif", "reponse"])
+            w.writerows([b["origin"], b["name"], stat, p.get("Poids"), p.get("LIV_Rel"), p.get("LIV_Rel_Pays"), p.get("Dest_CP"), p.get("Dest_Pays"), why, brut[:1000]]
+                        for b, p, stat, why, brut in refus)
+    echecs = [(b, why) for b, _, _, why, _ in refus]
     if not faits:
         return None, faits, echecs
     total = out / f"etiquettes-{stamp}.pdf"

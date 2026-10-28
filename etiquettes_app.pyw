@@ -300,7 +300,9 @@ class Api:
                 b, p, relais = self._ligne(l["bon"])
                 mr.mettre_poids(p, v["kg"][l["bon"]])
                 prets.append((b, p, relais))
-            self._j(f"création demandée : {len(prets)} colis, " + ", ".join(f"{b['name']} {p['Poids']} g" for b, p, _ in prets))
+            tape = {l["bon"]: str(l.get("poids", "")).strip() for l in lignes}
+            self._j(f"création demandée : {len(prets)} colis, " + ", ".join(
+                f"{b['name']} tapé « {tape.get(b['name'], '')} » -> {p['Poids']} g (Odoo {b.get('shipping_weight') or b.get('weight') or 0} kg)" for b, p, _ in prets))
             with self._verrou:
                 total, faits, echecs = mr.creer(self._c, prets, self._a.sortie, dire=lambda *_: None)
             self._j(f"création : {len(faits)} faite(s), {len(echecs)} refus" + "".join(f" | {f['bon']} -> n° {f['n_colis']}" for f in faits)
@@ -418,6 +420,28 @@ class Api:
                 L.append(f"{cle} = {val or '(vide)'}")
         if self._c:
             L.append(f"Connexion en cours : base « {self._c['o'].db} », " + ("PRODUCTION, étiquettes payées" if self._c["reel"] else "simulation"))
+        titre("Joignabilité au moment du rapport (rien n'est créé)")
+        import socket, urllib.error, urllib.request, xmlrpc.client
+        delai = socket.getdefaulttimeout(); socket.setdefaulttimeout(6)
+        try:
+            url = (v.get("ODOO_URL") or "").strip().rstrip("/")
+            if url:
+                try:
+                    info = xmlrpc.client.ServerProxy(f"{mr.resolve_redirect(url)}/xmlrpc/2/common").version()
+                    L.append(f"Odoo : répond, version serveur {info.get('server_version', '?')}")
+                except Exception as e:
+                    L.append(f"Odoo : injoignable ({e})")
+            else:
+                L.append("Odoo : adresse vide dans les réglages")
+            try:
+                with urllib.request.urlopen(urllib.request.Request(mr.WS_URL, method="HEAD"), timeout=6) as r:
+                    L.append(f"Mondial Relay : répond (HTTP {r.status})")
+            except urllib.error.HTTPError as e:
+                L.append(f"Mondial Relay : répond (HTTP {e.code})")
+            except Exception as e:
+                L.append(f"Mondial Relay : injoignable ({e})")
+        finally:
+            socket.setdefaulttimeout(delai)
         titre("Colis affichés en ce moment")
         L.append(f"{len(self._prets)} à étiqueter : " + ", ".join(f"{b['name']} ({b['origin']})" for b, _, _ in self._prets) if self._prets else "aucun colis à étiqueter")
         for b, why in self._refus:
@@ -430,7 +454,7 @@ class Api:
         for d in dossiers:
             L.append((d.name, True))
             for nom, colonnes in (("recap", ("bon", "commande", "poids_g", "n_colis")),
-                                  ("refus", ("bon", "commande", "stat", "poids_g", "relais", "pays_relais", "motif"))):
+                                  ("refus", ("bon", "commande", "stat", "poids_g", "relais", "pays_relais", "motif", "reponse"))):
                 f = d / f"{nom}-{d.name}.csv"
                 if f.exists():
                     with open(f, encoding="utf-8-sig", newline="") as fh:
