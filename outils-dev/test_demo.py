@@ -108,6 +108,8 @@ def scenario(w):
     verif(r["echecs"] and "STAT 14" in r["echecs"][0]["motif"], f"échec motivé : {r['echecs'][0]['motif'] if r.get('echecs') else '-'}")
     verif(r["pdf"] and Path(r["pdf"]).exists() and Path(r["pdf"]).stat().st_size > 500, f"PDF créé : {Path(r['pdf']).name if r.get('pdf') else '-'}")
     verif(all(f["n_colis"].startswith("TEST") for f in r["faits"]), "n° de colis fictifs TEST…")
+    refus = list(Path(r["pdf"]).parent.glob("refus-*.csv")); lignes_refus = refus[0].read_text(encoding="utf-8-sig").splitlines() if refus else []
+    verif(len(refus) == 1 and len(lignes_refus) == 2 and lignes_refus[1].startswith("S01255;WH/OUT/00127;14;3000;099999;FR;;;"), f"trace du refus écrite à côté du PDF : {lignes_refus[1][:60] if len(lignes_refus) > 1 else refus}")
     print("5. actualisation", flush=True)
     r = appel(w, "lister"); bons = [x["bon"] for x in r["prets"]]; verif("WH/OUT/00127" in bons and not any(b in bons for b in ("WH/OUT/00118", "WH/OUT/00121", "WH/OUT/00125")), f"après création, les 3 colis étiquetés ont disparu, celui en échec reste → {bons}")
     r = appel(w, "lister"); verif(len(r["prets"]) == 2 and not r["refus"] and any(x["bon"] == "WH/OUT/00130" for x in r["prets"]), "après deux actualisations, le bon en attente est validé et apparaît")

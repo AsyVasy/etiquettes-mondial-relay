@@ -238,21 +238,23 @@ def creer(c, prets, sortie, dire=print):
     """Crée les étiquettes (vraies en prod, simulation ailleurs), assemble un PDF unique + un récap CSV.
     En prod, le n° de colis est écrit dans le bon (carrier_tracking_ref, rien d'autre) dès la réponse de Mondial Relay,
     avant le téléchargement du PDF : une étiquette payée est toujours enregistrée. En simulation, Odoo n'est pas modifié.
+    Chaque refus garde ce qui a été envoyé (poids, relais, adresse, jamais la clé) dans refus-<horodatage>.csv.
     Renvoie (chemin du PDF ou None, faits, échecs)."""
     o, mr, reel = c["o"], c["mr"], c["reel"]
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")  # à la seconde : deux créations dans la même minute ne s'écrasent plus
     out = Path(sortie) / stamp
     out.mkdir(parents=True, exist_ok=True)
     fmt = mr.get("MR_FORMAT", "A4")
-    pdf, faits, echecs = PdfWriter(), [], []
+    pdf, faits, refus = PdfWriter(), [], []  # refus : (bon, données envoyées, STAT, motif)
+    def echec(b, p, stat, why):
+        refus.append((b, p, stat, why)); dire(f"  ÉCHEC  {b['origin']} : {why}")
     for b, p, relais in prets:
         fichier = out / f"{b['name'].replace('/', '-')}.pdf"
         if reel:
             get = soap("WSI2_CreationEtiquette", CHAMPS, p, c["cle"], "<Texte></Texte>")
             stat, num, url = get("STAT"), get("ExpeditionNum"), get("URL_Etiquette")
             if stat != "0":
-                echecs.append((b, f"Mondial Relay STAT {stat} {STAT.get(stat, 'voir la doc')}"))
-                dire(f"  ÉCHEC  {b['origin']} : {echecs[-1][1]}"); continue
+                echec(b, p, stat, f"Mondial Relay STAT {stat} {STAT.get(stat, 'voir la doc')} (poids envoyé {p['Poids']} g)"); continue
             try:  # tout de suite : l'étiquette est payée, le bon ne doit plus jamais être reproposé
                 o("stock.picking", "write", [b["id"]], {"carrier_tracking_ref": num})
             except Exception as e:
@@ -262,14 +264,12 @@ def creer(c, prets, sortie, dire=print):
                 with urllib.request.urlopen(MR_SITE + re.sub(r"format=[^&]*", f"format={fmt}", url), timeout=60) as r:
                     fichier.write_bytes(r.read())
             except Exception as e:
-                echecs.append((b, f"étiquette {num} créée et n° écrit dans le bon, mais PDF non téléchargé ({e}) : "
-                                  f"à réimprimer depuis l'espace Mondial Relay"))
-                dire(f"  ÉCHEC  {b['origin']} : {echecs[-1][1]}"); continue
+                echec(b, p, "0", f"étiquette {num} créée et n° écrit dans le bon, mais PDF non téléchargé ({e}) : "
+                                 f"à réimprimer depuis l'espace Mondial Relay"); continue
         else:
             stat, adr = detail_relais(c["ens"], c["cle"], p["LIV_Rel"], p["LIV_Rel_Pays"])
             if stat != "0":
-                echecs.append((b, f"Mondial Relay STAT {stat} {STAT.get(stat, '')}"))
-                dire(f"  ÉCHEC  {b['origin']} : {echecs[-1][1]}"); continue
+                echec(b, p, stat, f"Mondial Relay STAT {stat} {STAT.get(stat, '')}"); continue
             num = f"TEST{random.randint(0, 9999):04d}"
             pdf_simulation(fichier, ["SIMULATION - PAS UNE ETIQUETTE", "", f"Commande {b['origin']}  Bon {b['name']}",
                                      p["Dest_Ad1"], f"Relais {p['LIV_Rel']} : {adr}", f"Poids {p['Poids']} g",
@@ -279,6 +279,13 @@ def creer(c, prets, sortie, dire=print):
         faits.append({"commande": b["origin"], "bon": b["name"], "client": p["Dest_Ad1"], "relais": relais,
                       "poids_g": p["Poids"], "n_colis": num})
         dire(f"  OK     {b['origin']} → n° de colis {num} " + (f"écrit dans le bon {b['name']}" if reel else "(fictif, rien n'est écrit dans Odoo)"))
+    if refus:  # trace des refus (sans clé) : ce qui a été envoyé, pour comprendre un STAT sans deviner
+        with open(out / f"refus-{stamp}.csv", "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f, delimiter=";")
+            w.writerow(["commande", "bon", "stat", "poids_g", "relais", "pays_relais", "cp", "pays", "motif"])
+            w.writerows([b["origin"], b["name"], stat, p.get("Poids"), p.get("LIV_Rel"), p.get("LIV_Rel_Pays"), p.get("Dest_CP"), p.get("Dest_Pays"), why]
+                        for b, p, stat, why in refus)
+    echecs = [(b, why) for b, _, _, why in refus]
     if not faits:
         return None, faits, echecs
     total = out / f"etiquettes-{stamp}.pdf"
