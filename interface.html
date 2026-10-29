@@ -289,7 +289,6 @@
       <p>Toutes les étiquettes des bons Odoo des 30 derniers jours, d'où qu'elles viennent, avec leur suivi. « PDF » rouvre le fichier de ce PC, ou le redemande à Mondial Relay.</p>
     </div>
     <div class="actions">
-      <span class="maj-h" id="maj-h"></span>
       <div class="recherche-h">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="h-recherche" type="search" placeholder="Client, commande, colis…" spellcheck="false" autocomplete="off" oninput="rechercherHistorique(this.value)" onkeydown="if (event.key === 'Escape') { this.value = ''; rechercherHistorique(''); }">
@@ -300,6 +299,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
         Dossier
       </button>
+      <span class="maj-h" id="maj-h"></span>
       <button class="btn" id="b-hist-actualiser" onclick="ouvrirHistorique(true)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
         Actualiser
