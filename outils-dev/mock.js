@@ -31,7 +31,7 @@ window.pywebview = { api: {
 }};
 window.addEventListener("load", async () => {
   await new Promise((r) => setTimeout(r, 300));
-  etat.poids["WH/OUT/00118"] = "1,25"; etat.poids["WH/OUT/00121"] = "0,80"; afficher();
+  etat.poids["WH/OUT/00118"] = "1,25"; etat.poids["WH/OUT/00121"] = "0,80"; document.querySelector("#maj-c").textContent = "09:41"; afficher();
   const sc = document.documentElement.dataset.scenario;
   if (sc === "colis") { document.querySelector("#poids-2 input").focus(); }
   if (sc === "colis-decoche") { basculer("WH/OUT/00121"); document.querySelector("#poids-2 input").focus(); }

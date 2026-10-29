@@ -155,6 +155,7 @@ def scenario(w):
     verif(ev(w, "document.querySelector('#h-recherche').value + '|' + document.querySelectorAll('#historique .ligne-h').length") == "|3", "Échap vide la recherche : 3 lignes de nouveau")
     verif(ev(w, "Object.keys(etat.suivis).length") == 3, "suivis gardés en cache : Mondial Relay n'est pas réinterrogé à chaque frappe")
     print("7a. historique gardé en session, cache des suivis", flush=True)
+    verif(re.fullmatch(r"\d\d:\d\d", str(ev(w, "document.querySelector('#b-actualiser small').textContent"))), "heure de lecture aussi dans le bouton Actualiser des colis")
     verif(re.fullmatch(r"\d\d:\d\d", str(ev(w, "document.querySelector('#b-hist-actualiser small').textContent"))), f"heure de lecture dans le bouton Actualiser : « {ev(w, chr(100) + 'ocument.querySelector(' + chr(39) + '#maj-h' + chr(39) + ').textContent')} »")
     ev(w, "window.__hist = etat.hist; ouvrirReglages(false).then(() => ouvrirHistorique()).then(() => { window.__meme = etat.hist === window.__hist; }); 1"); time.sleep(1.5)
     verif(ev(w, "window.__meme") is True and ev(w, "document.querySelectorAll('#historique .ligne-h').length") == 3, "retour sur l'onglet : liste réaffichée sans relire Odoo")
