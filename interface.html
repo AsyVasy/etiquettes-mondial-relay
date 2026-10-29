@@ -36,12 +36,12 @@
   .segments button:hover { color: var(--txt); }
   .segments button.actif { background: var(--carte); color: var(--txt); box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 .5px rgba(0,0,0,.05); }
   .segments .point { width: 7px; height: 7px; border-radius: 50%; background: var(--ter); }
-  .segments .point.prod { background: var(--rouge); } .segments .point.simu { background: #F09000; }
+  .segments .point.prod { background: var(--vert); } .segments .point.simu { background: #F09000; }
   .droite { margin-left: auto; display: flex; align-items: center; height: 100%; }
   .h1-ligne { display: flex; align-items: center; gap: 12px; }
   .pastille { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 11px 0 9px; border-radius: 13px; font-size: 12.5px; font-weight: 600; white-space: nowrap; margin-top: 4px; }
   .pastille::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-  .pastille.prod { background: var(--rouge-bg); color: var(--rouge); }
+  .pastille.prod { background: var(--vert-bg); color: var(--vert); }  /* état normal chez le client : discret ; le rouge reste pour les problèmes */
   .pastille.simu { background: var(--orange-bg); color: var(--orange); }
   .pastille.attente { background: #EBEBEF; color: var(--sec); }
   .fenetre-boutons { display: flex; height: 100%; }
@@ -404,7 +404,7 @@
     etat.pret = true; etat.reel = r.reel; etat.db = r.db;
     const demo = r.db === "demo";
     if (etat.lecture) pastille("attente", `Lecture seule · ${r.reel ? "production" : "base " + r.db} · aucune création`);
-    else if (r.reel) pastille("prod", "Production · étiquettes payées");
+    else if (r.reel) pastille("prod", "Production");
     else pastille("simu", demo ? "Démonstration · données fictives" : "Simulation · rien n'est payé");
     $("#sous-titre").textContent = etat.lecture ? "Mode lecture seule : vous pouvez tout consulter et vérifier, mais aucune étiquette ne sera créée ni payée." : r.reel
       ? "Chaque étiquette créée est payée sur le crédit Mondial Relay. Tapez le poids pesé, emballage compris."
