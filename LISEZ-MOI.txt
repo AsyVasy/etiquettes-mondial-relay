@@ -25,6 +25,7 @@ Chaque jour
 - L'écran Historique liste toutes les étiquettes des bons Odoo des 30 derniers jours, même faites ailleurs,
   avec leur suivi Mondial Relay ; « PDF » rouvre le fichier de ce PC ou le redemande à Mondial Relay (gratuit).
   Le champ de recherche en haut filtre par commande, bon, client, relais ou n° de colis (Échap pour effacer).
+  Cochez plusieurs lignes puis « Imprimer la sélection » : un seul PDF avec toutes ces étiquettes s'ouvre.
 - En cas de problème : Réglages > « Rapport pour l'administrateur » crée un PDF dans « sortie »,
   sans clé ni nom de client, à joindre à votre message. Le fichier journal.log garde les derniers événements.
 - Un réglage à changer (clé expirée, imprimante) : « Réglages » en haut de la fenêtre.

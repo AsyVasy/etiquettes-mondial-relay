@@ -27,6 +27,7 @@ window.pywebview = { api: {
   ], refus: [ { date: "2026-10-23 09:48:12", bon: "WH/OUT/00127", commande: "S01255", stat: "14", poids_g: "3000", motif: "Mondial Relay STAT 14 n° de point relais invalide" } ] }),
   suivi: (num) => P(num === "12345601" ? { ok: true, etat: "Livré", detail: "Colis livré le 24/10/26 à 11:02" } : { ok: true, etat: "En cours d'acheminement", detail: "Prise en charge point relais le 23/10/26 à 15:10, Villeneuve" }),
   etiquette_pdf: () => P({ ok: true, chemin: "x", local: true }),
+  etiquettes_lot: (l) => P({ ok: true, chemin: "C:\\EtiquettesMR\\sortie\\recuperees\\selection-20261029-141500.pdf", n: l.length, echecs: [] }),
 }};
 window.addEventListener("load", async () => {
   await new Promise((r) => setTimeout(r, 300));
@@ -39,6 +40,7 @@ window.addEventListener("load", async () => {
   if (sc === "reglages") { await ouvrirReglages(false); await new Promise((r) => setTimeout(r, 200)); testerReglages(); document.activeElement.blur(); }
   if (sc === "reglages-echec") { window.pywebview.api.reglages_tester = () => P([[false, "Odoo : ÉCHEC — connexion refusée : identifiant, clé API ou nom de base incorrect (ou clé expirée)"], [false, "Mondial Relay : ÉCHEC — STAT 97 clé de sécurité invalide."]]); await ouvrirReglages(false); await new Promise((r) => setTimeout(r, 200)); testerReglages(); document.activeElement.blur(); }
   if (sc === "historique") { await ouvrirHistorique(); }
+  if (sc === "historique-selection") { await ouvrirHistorique(); choisir("12345678"); choisir("12345601"); }
   if (sc === "historique-recherche") { await ouvrirHistorique(); const c = document.querySelector("#h-recherche"); c.value = "dupont"; rechercherHistorique("dupont"); c.focus(); }
   if (sc === "tarifs") { await ouvrirTarifs(); document.querySelector("#t-palier").value = "1"; document.activeElement.blur(); }
   if (sc === "reglages-points") { await ouvrirReglages(false); await new Promise((r) => setTimeout(r, 200)); voir("r-ODOO_API_KEY", document.querySelector("#r-ODOO_API_KEY").nextElementSibling); document.activeElement.blur(); }

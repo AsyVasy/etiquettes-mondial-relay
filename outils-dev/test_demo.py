@@ -154,6 +154,27 @@ def scenario(w):
     ev(w, "const c = document.querySelector('#h-recherche'); c.value = 'x'; c.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); 1"); time.sleep(0.5)
     verif(ev(w, "document.querySelector('#h-recherche').value + '|' + document.querySelectorAll('#historique .ligne-h').length") == "|3", "Échap vide la recherche : 3 lignes de nouveau")
     verif(ev(w, "Object.keys(etat.suivis).length") == 3, "suivis gardés en cache : Mondial Relay n'est pas réinterrogé à chaque frappe")
+    print("7b. impression multiple", flush=True)
+    verif(ev(w, "document.querySelector('#b-imprimer-lot').disabled") is True, "bouton « Imprimer la sélection » inactif sans sélection")
+    ev(w, "document.querySelectorAll('#historique .ligne-h .coche')[0].click(); document.querySelectorAll('#historique .ligne-h .coche')[2].click(); 1"); time.sleep(0.3)
+    verif(ev(w, "document.querySelectorAll('#historique .ligne-h.choisie').length + '|' + document.querySelector('#b-imprimer-lot').textContent + '|' + document.querySelector('#b-imprimer-lot').disabled + '|' + document.querySelector('#h-tout').className") == "2|Imprimer la sélection (2)|false|coche partiel", "deux lignes cochées : bouton actif avec le compte, case d'en-tête partielle")
+    ev(w, "const c = document.querySelector('#h-recherche'); c.value = 'dupont'; c.dispatchEvent(new Event('input')); 1"); time.sleep(0.4)
+    verif(ev(w, "document.querySelectorAll('#historique .ligne-h.choisie').length + '|' + document.querySelector('#b-imprimer-lot').textContent") == "1|Imprimer la sélection (2)", "la sélection survit à la recherche (1 visible, 2 choisies)")
+    ev(w, "const c = document.querySelector('#h-recherche'); c.value = ''; c.dispatchEvent(new Event('input')); choisirTout(); 1"); time.sleep(0.4)
+    verif(ev(w, "document.querySelectorAll('#historique .ligne-h.choisie').length + '|' + document.querySelector('#h-tout').className") == "3|coche on", "case d'en-tête : tout coché")
+    app.ouverts = []
+    ev(w, "imprimerSelection(); 1")
+    for _ in range(20):
+        if app.ouverts: break
+        time.sleep(0.5)
+    time.sleep(0.5)
+    lot = sorted((D / "demo" / "sortie" / "recuperees").glob("selection-*.pdf"))
+    from pypdf import PdfReader
+    verif(len(app.ouverts) == 1 and app.ouverts[0].startswith("selection-") and lot and len(PdfReader(str(lot[-1])).pages) == 3, f"PDF fusionné de 3 étiquettes écrit dans sortie/recuperees et ouvert : {app.ouverts}")
+    verif("3 étiquettes dans un seul PDF" in str(ev(w, "document.querySelector('.feuille h2') ? document.querySelector('.feuille h2').textContent : ''")) and ev(w, "Object.keys(etat.choix).length") == 0, "feuille de confirmation, sélection vidée")
+    ev(w, "fermerFeuille(); 1")
+    r = appel(w, "etiquettes_lot", [{"n_colis": "99999999", "fichier": None, "bon": "WH/OUT/99999"}])
+    verif(not r["ok"] and "Aucune étiquette à imprimer" in r["erreur"] and "WH/OUT/99999" in r["erreur"], "lot sans aucune étiquette trouvable : erreur claire avec le bon en cause")
     r = appel(w, "etiquette_pdf", "99999999", None); verif(not r["ok"] and "Démo" in r["erreur"], "PDF absent localement : demande à Mondial Relay (refusée en démo) avec message clair")
     print("8. écran", flush=True)
     verif(ev(w, "ouvrirReglages(false).then(()=>{window.__e=document.querySelector('#segments .actif').textContent.trim()}); 1") == 1, "ouverture des réglages demandée")

@@ -417,26 +417,61 @@ class Api:
         except BaseException as e:
             return {"ok": False, "stat": "", "etat": texte_erreur(e)}
 
+    def _pdf_colis(self, num, fichier=None):
+        """Chemin du PDF d'un colis : le fichier local s'il existe, sinon celui redemandé à Mondial Relay (gratuit), gardé dans sortie/recuperees.
+        Renvoie (chemin, local) ou lève une erreur lisible."""
+        sortie = Path(self._a.sortie).resolve()
+        if fichier:
+            p = Path(fichier).resolve()
+            if sortie in p.parents and p.exists():
+                return p, True
+        if not num or str(num).startswith("TEST"):
+            raise RuntimeError("Pas de PDF : étiquette de simulation, ou fichier local supprimé.")
+        dossier = sortie / "recuperees"; dossier.mkdir(parents=True, exist_ok=True)
+        chemin = dossier / f"etiquette-{num}.pdf"
+        if chemin.exists() and chemin.stat().st_size > 0:  # déjà redemandé une fois
+            return chemin, True
+        data = mr.etiquette_pdf(self._c["ens"], self._c["cle"], str(num), self._c["mr"].get("MR_FORMAT", "A4"))
+        chemin.write_bytes(data)
+        self._j(f"PDF redemandé à Mondial Relay : n° {num} -> {chemin.name}")
+        return chemin, False
+
     def etiquette_pdf(self, num, fichier=None):
-        """Ouvre l'étiquette d'un colis : le PDF local s'il existe, sinon celui redemandé à Mondial Relay (gratuit), gardé dans sortie/recuperees."""
+        """Ouvre l'étiquette d'un colis (PDF local, sinon redemandé à Mondial Relay)."""
         try:
-            sortie = Path(self._a.sortie).resolve()
-            if fichier:
-                p = Path(fichier).resolve()
-                if sortie in p.parents and p.exists():
-                    os.startfile(p)
-                    return {"ok": True, "chemin": str(p), "local": True}
-            if not num or str(num).startswith("TEST"):
-                return {"ok": False, "erreur": "Pas de PDF : étiquette de simulation, ou fichier local supprimé."}
-            data = mr.etiquette_pdf(self._c["ens"], self._c["cle"], str(num), self._c["mr"].get("MR_FORMAT", "A4"))
-            dossier = sortie / "recuperees"; dossier.mkdir(parents=True, exist_ok=True)
-            chemin = dossier / f"etiquette-{num}.pdf"
-            chemin.write_bytes(data)
-            self._j(f"PDF redemandé à Mondial Relay : n° {num} -> {chemin.name}")
+            chemin, local = self._pdf_colis(num, fichier)
             os.startfile(chemin)
-            return {"ok": True, "chemin": str(chemin), "local": False}
+            return {"ok": True, "chemin": str(chemin), "local": local}
         except BaseException as e:
             self._j(f"PDF n° {num} : erreur {texte_erreur(e)}")
+            return {"ok": False, "erreur": texte_erreur(e)}
+
+    def etiquettes_lot(self, colis):
+        """Un seul PDF avec les étiquettes sélectionnées (chacune : locale, sinon redemandée), dans sortie/recuperees, ouvert pour l'imprimer.
+        colis : [{"n_colis", "fichier", "bon"}]. Les étiquettes introuvables sont listées dans « echecs », les autres sont quand même imprimées."""
+        try:
+            from pypdf import PdfReader, PdfWriter
+            pdf, faits, echecs = PdfWriter(), [], []
+            for c in colis or []:
+                num, bon = str(c.get("n_colis") or ""), c.get("bon") or ""
+                try:
+                    chemin, _ = self._pdf_colis(num, c.get("fichier"))
+                    for page in PdfReader(str(chemin)).pages:
+                        pdf.add_page(page)
+                    faits.append(bon)
+                except BaseException as e:
+                    echecs.append({"bon": bon, "n_colis": num, "motif": texte_erreur(e)})
+            if not faits:
+                raise RuntimeError("Aucune étiquette à imprimer : " + " ; ".join(f"{e['bon']} : {e['motif']}" for e in echecs))
+            dossier = Path(self._a.sortie).resolve() / "recuperees"; dossier.mkdir(parents=True, exist_ok=True)
+            chemin = dossier / f"selection-{datetime.now():%Y%m%d-%H%M%S}.pdf"
+            with open(chemin, "wb") as f:
+                pdf.write(f)
+            self._j(f"impression multiple : {len(faits)} étiquette(s) -> {chemin.name}" + "".join(f" | {e['bon']} : {e['motif']}" for e in echecs))
+            os.startfile(chemin)
+            return {"ok": True, "chemin": str(chemin), "n": len(faits), "echecs": echecs}
+        except BaseException as e:
+            self._j(f"impression multiple : erreur {texte_erreur(e)}")
             return {"ok": False, "erreur": texte_erreur(e)}
 
     def ouvrir_fichier(self, chemin):
