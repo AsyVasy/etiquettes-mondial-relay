@@ -32,7 +32,7 @@ GRILLE_PUBLIQUE = {
     "DE": [5.82, 7.52, 8.62, 11.82, 16.83, 25.77, None, None],
 }
 TITRE = "Étiquettes Mondial Relay"
-VERSION = "2026-10-28"
+VERSION = "2026-10-29"
 JOURNAL_LIGNES = 400  # lignes gardées dans journal.log
 
 
