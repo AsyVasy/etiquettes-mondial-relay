@@ -173,6 +173,9 @@ def scenario(w):
     verif(len(app.ouverts) == 1 and app.ouverts[0].startswith("selection-") and lot and len(PdfReader(str(lot[-1])).pages) == 3, f"PDF fusionné de 3 étiquettes écrit dans sortie/recuperees et ouvert : {app.ouverts}")
     verif("3 étiquettes dans un seul PDF" in str(ev(w, "document.querySelector('.feuille h2') ? document.querySelector('.feuille h2').textContent : ''")) and ev(w, "Object.keys(etat.choix).length") == 0, "feuille de confirmation, sélection vidée")
     ev(w, "fermerFeuille(); 1")
+    app.ouverts = []
+    ev(w, "document.querySelector('#b-hist-dossier').click(); 1"); time.sleep(1)
+    verif(app.ouverts == ["sortie"] and Path(hist["sortie"]).resolve() == (D / "demo" / "sortie").resolve(), f"bouton « Dossier » : le dossier sortie s'ouvre dans l'Explorateur ({app.ouverts})")
     r = appel(w, "etiquettes_lot", [{"n_colis": "99999999", "fichier": None, "bon": "WH/OUT/99999"}])
     verif(not r["ok"] and "Aucune étiquette à imprimer" in r["erreur"] and "WH/OUT/99999" in r["erreur"], "lot sans aucune étiquette trouvable : erreur claire avec le bon en cause")
     r = appel(w, "etiquette_pdf", "99999999", None); verif(not r["ok"] and "Démo" in r["erreur"], "PDF absent localement : demande à Mondial Relay (refusée en démo) avec message clair")

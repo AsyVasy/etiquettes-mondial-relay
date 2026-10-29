@@ -20,7 +20,7 @@ window.pywebview = { api: {
   reglages_verifier: () => P([]),
   reglages_tester: () => P([[true, "Odoo : connecté en tant que Prénom Nom."], [true, "Odoo : base de PRODUCTION → vraies étiquettes, payées."], [true, "Odoo : droit d'écrire les n° de colis dans les bons : OK."], [false, "Mondial Relay : ÉCHEC — STAT 97 clé de sécurité invalide."]]),
   fermer: () => P(), reduire: () => P(), agrandir: () => P(), ouvrir_fichier: () => P(),
-  historique: () => P({ jours: 30, odoo: true, erreur: "", lignes: [
+  historique: () => P({ jours: 30, odoo: true, erreur: "", sortie: "C:\\EtiquettesMR\\sortie", lignes: [
     { date: "2026-10-23 09:48:12", commande: "S01234", bon: "WH/OUT/00118", client: "MARIE DUPONT", relais: "TABAC DE LA MAIRIE 75018 PARIS", poids_g: "1250", n_colis: "12345678", fichier: "x", dossier: "x", prix: 6.3, facture_ttc: 6.4, ce_poste: true },
     { date: "2026-10-23 09:48:12", commande: "S01240", bon: "WH/OUT/00121", client: "JEAN MARTIN", relais: "PRESSING DU CANAL 59000 LILLE", poids_g: "800", n_colis: "12345679", fichier: "x", dossier: "x", prix: 5.5, facture_ttc: 0, ce_poste: true },
     { date: "2026-10-22 17:12:40", commande: "S01198", bon: "WH/OUT/00102", client: "AHMED BENALI", relais: "", poids_g: "", n_colis: "12345601", fichier: null, dossier: null, prix: null, facture_ttc: null, ce_poste: false },

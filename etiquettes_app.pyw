@@ -406,7 +406,7 @@ class Api:
                 lignes[bon] = l
         tri = sorted(lignes.values(), key=lambda l: l["date"], reverse=True)
         return {"lignes": tri, "refus": sorted(refus, key=lambda r: r["date"], reverse=True), "jours": self.HISTORIQUE_JOURS,
-                "odoo": bool(odoo) or (self._c is not None and not erreur), "erreur": erreur}
+                "odoo": bool(odoo) or (self._c is not None and not erreur), "erreur": erreur, "sortie": str(Path(self._a.sortie).resolve())}
 
     def suivi(self, num):
         """Suivi Mondial Relay d'un n° de colis (gratuit)."""
