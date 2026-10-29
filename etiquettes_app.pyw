@@ -6,7 +6,7 @@ Si pywebview ou WebView2 manque, l'interface classique (tkinter) s'ouvre à la p
 Usage : pyw -3 etiquettes_app.pyw [--odoo odoo.env] [--mr mondialrelay.env] [--bons WH/OUT/1,WH/OUT/2] [--installation] [--demo] [--lecture-seule]
 """
 import argparse, base64, csv, ctypes, io, json, os, platform, re, sys, threading
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ICI = Path(__file__).resolve().parent
@@ -326,28 +326,118 @@ class Api:
         if self._pdf and Path(self._pdf).exists():
             os.startfile(self._pdf)
 
-    # --- historique : lecture du dossier « sortie » écrit par creer() (un sous-dossier AAAAMMJJ-HHMMSS par création ; AAAAMMJJ-HHMM avant le 26/10/2026) ---
-    def historique(self):
-        sortie = Path(self._a.sortie)
-        creations = []
+    # --- historique : les étiquettes connues d'Odoo (30 jours) fusionnées avec les créations de ce poste (dossier « sortie ») ---
+    HISTORIQUE_JOURS = 30
+
+    def _creations_locales(self):
+        """Créations de ce poste : {bon: ligne} et liste des refus, d'après les dossiers AAAAMMJJ-HHMMSS de « sortie »."""
+        sortie, lignes, refus = Path(self._a.sortie), {}, []
         for d in sorted(sortie.iterdir(), reverse=True) if sortie.is_dir() else []:
             if not (d.is_dir() and re.fullmatch(r"\d{8}-\d{4}(\d{2})?", d.name)):
                 continue
-            recap, pdf = d / f"recap-{d.name}.csv", d / f"etiquettes-{d.name}.pdf"
+            s = d.name + ("00" if len(d.name) == 13 else "")
+            date = f"{s[:4]}-{s[4:6]}-{s[6:8]} {s[9:11]}:{s[11:13]}:{s[13:15]}"
             try:
                 complement = json.loads((d / "complement.json").read_text(encoding="utf-8"))
             except (FileNotFoundError, ValueError):
                 complement = {}
-            lignes = []
-            if recap.exists():
-                with open(recap, encoding="utf-8-sig", newline="") as f:
-                    for r in csv.DictReader(f, delimiter=";"):
-                        fichier = d / f"{r.get('bon', '').replace('/', '-')}.pdf"
-                        comp = complement.get(r.get("bon", ""), {})
-                        lignes.append({**r, "fichier": str(fichier) if fichier.exists() else None,
-                                       "prix": comp.get("prix"), "facture_ttc": comp.get("facture_ttc")})
-            creations.append({"stamp": d.name, "dossier": str(d), "pdf": str(pdf) if pdf.exists() else None, "lignes": lignes})
-        return creations
+            for nom, cible in (("recap", lignes), ("refus", refus)):
+                f = d / f"{nom}-{d.name}.csv"
+                if not f.exists():
+                    continue
+                with open(f, encoding="utf-8-sig", newline="") as fh:
+                    for r in csv.DictReader(fh, delimiter=";"):
+                        bon = r.get("bon", "")
+                        if nom == "refus":
+                            refus.append({"date": date, "bon": bon, "commande": r.get("commande", ""), "stat": r.get("stat", ""),
+                                          "poids_g": r.get("poids_g", ""), "motif": r.get("motif", "")})
+                        elif bon not in lignes:  # la création la plus récente l'emporte
+                            fichier, pdf = d / f"{bon.replace('/', '-')}.pdf", d / f"etiquettes-{d.name}.pdf"
+                            comp = complement.get(bon, {})
+                            lignes[bon] = {"date": date, "commande": r.get("commande", ""), "bon": bon, "client": r.get("client", ""),
+                                           "relais": r.get("relais", ""), "n_colis": r.get("n_colis", ""), "poids_g": r.get("poids_g", ""),
+                                           "prix": comp.get("prix"), "facture_ttc": comp.get("facture_ttc"), "ce_poste": True,
+                                           "fichier": str(fichier) if fichier.exists() else None, "dossier": str(d),
+                                           "pdf_global": str(pdf) if pdf.exists() else None}
+        return lignes, refus
+
+    def _etiquettes_odoo(self):
+        """Bons Mondial Relay validés depuis HISTORIQUE_JOURS jours qui portent un n° de colis, d'où qu'il vienne : {bon: ligne}."""
+        o = self._c["o"]
+        depuis = (datetime.now(timezone.utc) - timedelta(days=self.HISTORIQUE_JOURS)).strftime("%Y-%m-%d %H:%M:%S")
+        picks = o("stock.picking", "search_read", [["carrier_id.is_mondialrelay", "=", True], ["carrier_tracking_ref", "!=", False], ["date_done", ">=", depuis]],
+                  fields=["name", "origin", "partner_id", "carrier_tracking_ref", "date_done"], order="date_done desc", limit=300)
+        ids = sorted({p["partner_id"][0] for p in picks if p.get("partner_id")})
+        parts = {r["id"]: r for r in o("res.partner", "read", ids, fields=["name", "parent_id"])} if ids else {}
+        lignes = {}
+        for p in picks:
+            pr = parts.get(p["partner_id"][0]) if p.get("partner_id") else None
+            client = (pr["parent_id"][1] if pr and pr.get("parent_id") else (pr["name"] if pr else ""))
+            relais = pr["name"] if pr and pr.get("parent_id") else ""
+            try:  # Odoo donne l'heure en UTC
+                date = datetime.strptime(p["date_done"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+            except (TypeError, ValueError):
+                date = p.get("date_done") or ""
+            lignes[p["name"]] = {"date": date, "commande": p.get("origin") or "", "bon": p["name"], "client": client, "relais": relais,
+                                 "n_colis": p["carrier_tracking_ref"], "poids_g": "", "prix": None, "facture_ttc": None, "ce_poste": False,
+                                 "fichier": None, "dossier": None, "pdf_global": None}
+        return lignes
+
+    def historique(self):
+        """Une ligne par bon : Odoo (toutes les étiquettes) enrichi par ce poste (PDF local, coût, facturé) ; refus de ce poste à part."""
+        locales, refus = self._creations_locales()
+        odoo, erreur = {}, ""
+        if self._c:
+            try:
+                odoo = self._etiquettes_odoo()
+            except BaseException as e:
+                erreur = texte_erreur(e); self._j(f"historique : Odoo illisible, {erreur}")
+        else:
+            erreur = "non connecté à Odoo"
+        lignes = {}
+        for bon, l in odoo.items():
+            lignes[bon] = l
+        for bon, l in locales.items():
+            if bon in lignes:
+                lignes[bon].update({k: v for k, v in l.items() if k in ("fichier", "dossier", "pdf_global", "prix", "facture_ttc", "poids_g", "ce_poste")})
+                if not lignes[bon]["relais"]:
+                    lignes[bon]["relais"] = l["relais"]
+            else:
+                lignes[bon] = l
+        tri = sorted(lignes.values(), key=lambda l: l["date"], reverse=True)
+        return {"lignes": tri, "refus": sorted(refus, key=lambda r: r["date"], reverse=True), "jours": self.HISTORIQUE_JOURS,
+                "odoo": bool(odoo) or (self._c is not None and not erreur), "erreur": erreur}
+
+    def suivi(self, num):
+        """Suivi Mondial Relay d'un n° de colis (gratuit)."""
+        if not num or (str(num).startswith("TEST") and not self._a.demo):
+            return {"ok": True, "stat": "", "etat": "Simulation", "detail": "aucun colis réel", "evenements": []}
+        try:
+            return mr.suivi(self._c["ens"], self._c["cle"], str(num))
+        except BaseException as e:
+            return {"ok": False, "stat": "", "etat": texte_erreur(e)}
+
+    def etiquette_pdf(self, num, fichier=None):
+        """Ouvre l'étiquette d'un colis : le PDF local s'il existe, sinon celui redemandé à Mondial Relay (gratuit), gardé dans sortie/recuperees."""
+        try:
+            sortie = Path(self._a.sortie).resolve()
+            if fichier:
+                p = Path(fichier).resolve()
+                if sortie in p.parents and p.exists():
+                    os.startfile(p)
+                    return {"ok": True, "chemin": str(p), "local": True}
+            if not num or str(num).startswith("TEST"):
+                return {"ok": False, "erreur": "Pas de PDF : étiquette de simulation, ou fichier local supprimé."}
+            data = mr.etiquette_pdf(self._c["ens"], self._c["cle"], str(num), self._c["mr"].get("MR_FORMAT", "A4"))
+            dossier = sortie / "recuperees"; dossier.mkdir(parents=True, exist_ok=True)
+            chemin = dossier / f"etiquette-{num}.pdf"
+            chemin.write_bytes(data)
+            self._j(f"PDF redemandé à Mondial Relay : n° {num} -> {chemin.name}")
+            os.startfile(chemin)
+            return {"ok": True, "chemin": str(chemin), "local": False}
+        except BaseException as e:
+            self._j(f"PDF n° {num} : erreur {texte_erreur(e)}")
+            return {"ok": False, "erreur": texte_erreur(e)}
 
     def ouvrir_fichier(self, chemin):
         """Ouvre un PDF ou un dossier de l'historique (seulement à l'intérieur du dossier « sortie »)."""

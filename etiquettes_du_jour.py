@@ -116,6 +116,7 @@ def soap(methode, champs, p, cle, extra=""):
     def get(t):
         return (res.findtext(f"{{{NS}}}{t}") or "").strip()
     get.brut = re.sub(r"\s+", " ", ET.tostring(res, encoding="unicode")) if res is not None else ""  # réponse complète, pour les refus
+    get.element = res
     return get
 
 
@@ -123,6 +124,44 @@ def detail_relais(ens, cle, num, pays):
     """Gratuit, ne crée rien : lit la fiche d'un point relais. STAT 0 = identifiants et relais OK."""
     get = soap("WSI2_DetailPointRelais", ["Enseigne", "Num", "Pays"], {"Enseigne": ens, "Num": num, "Pays": pays}, cle)
     return get("STAT"), " ".join(x for x in (get("LgAdr1"), get("CP"), get("Ville")) if x)
+
+
+SUIVI = {"80": "Enregistré, en préparation", "81": "En cours d'acheminement", "82": "Livré", "83": "Anomalie"}
+
+
+def etiquette_pdf(ens, cle, num, fmt="A4"):
+    """PDF d'une étiquette déjà créée, par son n° d'expédition (gratuit). Renvoie les octets, ou lève une erreur lisible."""
+    get = soap("WSI3_GetEtiquettes", ["Enseigne", "Expeditions", "Langue"], {"Enseigne": ens, "Expeditions": num, "Langue": "FR"}, cle)
+    if get("STAT") != "0":
+        raise RuntimeError(f"Mondial Relay STAT {get('STAT')} {STAT.get(get('STAT'), '')} pour le n° {num}".strip())
+    url = get(f"URL_PDF_{fmt}") or get("URL_PDF_A4")
+    if not url:
+        raise RuntimeError(f"Mondial Relay ne propose plus de PDF pour le n° {num} (étiquette trop ancienne ?)")
+    try:
+        with urllib.request.urlopen(MR_SITE + url if url.startswith("/") else url, timeout=60) as r:
+            data = r.read()
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"Mondial Relay ne fournit plus le PDF du n° {num} (HTTP {e.code}) : étiquette trop ancienne, à réimprimer depuis l'espace Mondial Relay") from e
+    if not data.startswith(b"%PDF"):
+        raise RuntimeError(f"Mondial Relay ne renvoie plus de PDF pour le n° {num} (étiquette trop ancienne ?)")
+    return data
+
+
+def suivi(ens, cle, num):
+    """Suivi d'un colis par son n° d'expédition (gratuit) : état général, dernier événement, liste des événements."""
+    get = soap("WSI2_TracingColisDetaille", ["Enseigne", "Expedition", "Langue"], {"Enseigne": ens, "Expedition": num, "Langue": "FR"}, cle)
+    stat = get("STAT")
+    if stat not in SUIVI:
+        return {"ok": False, "stat": stat, "etat": f"Mondial Relay STAT {stat} {STAT.get(stat, '')}".strip()}
+    evenements = []
+    tracing = get.element.find(f"{{{NS}}}Tracing") if get.element is not None else None
+    for t in (tracing if tracing is not None else []):
+        v = {c.tag.split("}")[1]: (c.text or "").strip() for c in t}
+        if v.get("Libelle"):
+            evenements.append({"date": v.get("Date", ""), "heure": v.get("Heure", ""), "libelle": v["Libelle"].capitalize(), "lieu": v.get("Emplacement", "").title()})
+    dernier = evenements[-1] if evenements else None
+    detail = get("Libelle02") or (f"{dernier['libelle']} le {dernier['date']} à {dernier['heure']}" + (f", {dernier['lieu']}" if dernier["lieu"] else "") if dernier else "")
+    return {"ok": True, "stat": stat, "etat": SUIVI[stat], "detail": detail, "relais": get("Relais_Libelle").title(), "evenements": evenements}
 
 
 def pdf_simulation(chemin, lignes):

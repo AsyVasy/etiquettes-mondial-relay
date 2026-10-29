@@ -119,12 +119,19 @@
 
   /* ---------- historique ---------- */
   .historique { padding-bottom: 4px; }
-  .creation { background: var(--carte); border-radius: var(--r); box-shadow: var(--ombre); margin-bottom: 14px; }
-  .creation .tete-c { display: flex; align-items: center; gap: 12px; padding: 12px 18px; }
-  .creation .tete-c .quand { font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
-  .creation .tete-c .combien { color: var(--sec); }
-  .creation .tete-c .btn { margin-left: auto; height: 32px; } .creation .tete-c .btn + .btn { margin-left: 0; }
-  .creation .ligne-c { display: grid; grid-template-columns: 92px 1fr 130px 220px 90px; gap: 12px; align-items: center; padding: 7px 18px; border-top: .5px solid var(--sep); font-size: 13.5px; }
+  .tete-h, .ligne-h { display: grid; grid-template-columns: 112px 108px 1.1fr 102px 118px 1.3fr 108px; gap: 10px; align-items: center; padding: 0 18px; }
+  .ligne-h { min-height: 48px; padding: 7px 18px; border-top: .5px solid var(--sep); font-size: 13.5px; }
+  .ligne-h small, .ligne-r small { display: block; color: var(--sec); font-size: 12px; line-height: 1.3; }
+  .ligne-h .colis { font-family: "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
+  .ligne-h .ko { color: var(--rouge); }
+  .ligne-h .actions-h { display: flex; gap: 2px; justify-content: flex-end; } .ligne-h .actions-h .btn.texte { height: 26px; font-size: 13px; padding: 0 8px; }
+  .refus-h { margin-top: 14px; } .refus-h .tete { padding: 0 18px; display: flex; }
+  .ligne-r { display: grid; grid-template-columns: 112px 220px 1fr; gap: 10px; padding: 7px 18px; border-top: .5px solid var(--sep); font-size: 13px; }
+  .ligne-r .motif { color: var(--rouge); }
+  .info-h { color: var(--sec); font-size: 13px; padding: 10px 4px; }
+  .filtre-h { display: inline-flex; background: var(--champ); border-radius: 8px; padding: 3px; gap: 2px; margin-right: 8px; }
+  .filtre-h button { border: 0; background: transparent; padding: 4px 12px; border-radius: 6px; font: inherit; font-size: 13px; color: var(--sec); cursor: pointer; white-space: nowrap; }
+  .filtre-h button.actif { background: var(--carte); color: var(--txt); box-shadow: var(--ombre); }
 
   /* ---------- grille tarifaire ---------- */
   .outils-grille { display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; margin-bottom: 12px; align-items: stretch; }
@@ -156,9 +163,6 @@
   .feuille .recap div.total { color: var(--sec); font-weight: 600; }
   .feuille .recap div.entete-recap { font-size: 11.5px; color: var(--sec); padding: 6px 0 2px; border-top: 0; }
   .ligne .facture { color: var(--sec); font-variant-numeric: tabular-nums; }
-  .creation .ligne-c .cmd { font-weight: 600; }
-  .creation .ligne-c .colis { font-family: "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
-  .creation .ligne-c .btn.texte { justify-self: end; height: 26px; font-size: 13px; }
 
   /* ---------- feuilles (dialogues dans la fenêtre) ---------- */
   .voile { position: fixed; inset: 0; background: rgba(20,20,24,.32); backdrop-filter: blur(6px); display: flex; justify-content: center; align-items: center; padding: 24px; z-index: 10; animation: fondu .16s ease-out; }
@@ -267,10 +271,11 @@
 <section class="ecran cache" id="ecran-historique">
   <div class="entete">
     <div>
-      <h1 id="h1-historique">Étiquettes créées</h1>
-      <p>Pour réimprimer une étiquette abîmée ou retrouver un numéro de colis. Les PDF restent sur ce PC, dans le dossier « sortie ».</p>
+      <h1 id="h1-historique">Historique des étiquettes</h1>
+      <p>Toutes les étiquettes des bons Odoo des 30 derniers jours, d'où qu'elles viennent, avec leur suivi. « PDF » rouvre le fichier de ce PC, ou le redemande à Mondial Relay.</p>
     </div>
     <div class="actions">
+      <div class="filtre-h"><button id="hf-tous" class="actif" onclick="filtrerHistorique(false)">Tous</button><button id="hf-poste" onclick="filtrerHistorique(true)">Ce poste</button></div>
       <button class="btn" id="b-hist-actualiser" onclick="ouvrirHistorique()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
         Actualiser
@@ -278,7 +283,7 @@
     </div>
   </div>
   <div class="liste historique" id="historique"></div>
-  <div class="pied"><div class="etat">Une étiquette réimprimée ne vaut que pour son colis d'origine.</div></div>
+  <div class="pied"><div class="etat">Une étiquette réimprimée ne vaut que pour son colis d'origine. Le suivi et les PDF sont demandés à Mondial Relay sans frais.</div></div>
 </section>
 
 <!-- ======== écran des réglages ======== -->
@@ -551,38 +556,65 @@
       <div class="boutons"><button class="btn principal" onclick="fermerFeuille(); ouvrirReglages(false)">OK</button></div>`);
   }
 
-  // ---------- historique (dossier « sortie ») ----------
-  const quand = (stamp) => {
-    const d = new Date(+stamp.slice(0, 4), +stamp.slice(4, 6) - 1, +stamp.slice(6, 8), +stamp.slice(9, 11), +stamp.slice(11, 13), +(stamp.slice(13, 15) || 0));
-    const t = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-    return t.charAt(0).toUpperCase() + t.slice(1) + " à " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }).replace(":", " h ");
+  // ---------- historique : étiquettes d'Odoo (30 jours) + créations de ce poste, une ligne par bon ----------
+  const dateCourte = (d) => {
+    const x = new Date(String(d || "").replace(" ", "T"));
+    return isNaN(x) ? h(d) : `${x.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" })}<small>${x.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</small>`;
   };
   async function ouvrirHistorique() {
     await pret();
     if (etat.installation) return;
     montrerEcran("historique");
     const zone = $("#historique");
-    zone.innerHTML = `<div class="vide">Lecture du dossier…</div>`;
-    const creations = await api("historique");
-    if (!creations.length) { zone.innerHTML = `<div class="carte vide"><b>Aucune étiquette créée pour l'instant</b>Elles apparaîtront ici après la première création.</div>`; return; }
+    zone.innerHTML = `<div class="vide">Lecture d'Odoo et du dossier « sortie »…</div>`;
+    etat.hist = await api("historique");
+    rendreHistorique();
+  }
+  function lignesHistorique() { return (etat.hist ? etat.hist.lignes : []).filter((l) => !etat.histCePoste || l.ce_poste); }
+  function filtrerHistorique(cePoste) {
+    etat.histCePoste = cePoste;
+    $("#hf-tous").classList.toggle("actif", !cePoste); $("#hf-poste").classList.toggle("actif", cePoste);
+    if (etat.hist) rendreHistorique();
+  }
+  function rendreHistorique() {
+    const zone = $("#historique"), lignes = lignesHistorique(), refus = etat.hist.refus || [];
     // les chemins Windows (antislashs, guillemets) ne vont pas dans un attribut HTML : on les garde dans un tableau
     etat.chemins = [];
     const ref = (p) => etat.chemins.push(p) - 1;
-    zone.innerHTML = creations.map((c) => `
-      <div class="creation">
-        <div class="tete-c">
-          <span class="quand">${h(quand(c.stamp))}</span>
-          <span class="combien">${c.lignes.length} étiquette${c.lignes.length > 1 ? "s" : ""}${c.lignes.some((l) => l.prix != null) ? ` · ≈ ${euros(c.lignes.reduce((t, l) => t + (l.prix || 0), 0))} HT${c.lignes.some((l) => l.prix == null) ? " (partiel)" : ""}` : ""}</span>
-          ${c.pdf ? `<button class="btn" onclick="ouvrirChemin(${ref(c.pdf)})">Ouvrir le PDF</button>` : ""}
-          <button class="btn" onclick="ouvrirChemin(${ref(c.dossier)})">Dossier</button>
-        </div>
-        ${c.lignes.map((l) => `
-          <div class="ligne-c">
-            <span class="cmd">${h(l.commande)}</span><span>${h(l.client)}</span>
-            <span class="colis">${h(l.n_colis)}</span><span title="Poids · coût HT estimé · facturé au client TTC">${h((+l.poids_g / 1000).toFixed(2).replace(".", ","))} kg${l.prix != null ? ` · ${euros(l.prix)}` : ""}${l.facture_ttc != null ? ` · ${l.facture_ttc === 0 ? "offerte" : euros(l.facture_ttc) + " TTC"}` : ""}</span>
-            ${l.fichier ? `<button class="btn texte" onclick="ouvrirChemin(${ref(l.fichier)})">Étiquette</button>` : "<span></span>"}
-          </div>`).join("")}
-      </div>`).join("");
+    zone.innerHTML = `
+      <div class="carte">
+        <div class="tete tete-h"><span>Date</span><span>Commande</span><span>Client</span><span>N° de colis</span><span>Coût</span><span>Suivi Mondial Relay</span><span></span></div>
+        ${lignes.length ? lignes.map((l, i) => `
+          <div class="ligne-h">
+            <span>${dateCourte(l.date)}${l.ce_poste ? `<small>ce poste</small>` : ""}</span>
+            <span><b>${h(l.commande)}</b><small>${h(l.bon)}</small></span>
+            <span>${h(l.client)}<small>${h(l.relais || "")}</small></span>
+            <span class="colis">${h(l.n_colis)}</span>
+            <span>${l.prix != null ? `≈ ${euros(l.prix)} HT` : ""}${l.facture_ttc != null ? `<small>facturé ${euros(l.facture_ttc)} TTC</small>` : ""}</span>
+            <span class="suivi-h" id="suivi-${i}">…</span>
+            <span class="actions-h"><button class="btn texte" onclick="ouvrirEtiquette(${i})">PDF</button>${l.dossier ? `<button class="btn texte" onclick="ouvrirChemin(${ref(l.dossier)})">Dossier</button>` : ""}</span>
+          </div>`).join("") : `<div class="vide">Aucune étiquette sur cette période.</div>`}
+      </div>
+      ${refus.length ? `<div class="carte refus-h"><div class="tete">Refus sur ce poste (${refus.length})</div>${refus.map((r) => `
+        <div class="ligne-r"><span>${dateCourte(r.date)}</span><span><b>${h(r.commande)}</b><small>${h(r.bon)}</small></span><span class="motif">${h(r.motif)}</span></div>`).join("")}</div>` : ""}
+      ${etat.hist.odoo ? "" : `<div class="info-h">Odoo non interrogé (${h(etat.hist.erreur || "non connecté")}) : seules les créations de ce poste sont affichées.</div>`}`;
+    chargerSuivis(lignes);
+  }
+  async function chargerSuivis(lignes) {
+    // un colis après l'autre, sans bloquer l'écran ; on s'arrête si l'écran a été re-rendu entre-temps
+    const jeton = (etat.suiviJeton = (etat.suiviJeton || 0) + 1);
+    for (let i = 0; i < lignes.length; i++) {
+      const s = await api("suivi", lignes[i].n_colis);
+      const cell = $(`#suivi-${i}`);
+      if (jeton !== etat.suiviJeton || !cell) return;
+      cell.innerHTML = s.ok ? `${h(s.etat)}<small>${h(s.detail || "")}</small>` : `<span class="ko">${h(s.etat)}</span>`;
+    }
+  }
+  async function ouvrirEtiquette(i) {
+    const l = lignesHistorique()[i];
+    if (!l) return;
+    const r = await api("etiquette_pdf", l.n_colis, l.fichier);
+    if (!r.ok) erreur(r.erreur);
   }
   function ouvrirChemin(i) { api("ouvrir_fichier", etat.chemins[i]); }
 

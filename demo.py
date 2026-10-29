@@ -37,6 +37,11 @@ class FauxOdoo:
     db = "demo"
 
     def __call__(self, model, meth, *a, **k):
+        if model == "stock.picking" and meth == "search_read" and a[0] and a[0][0][0] == "carrier_id.is_mondialrelay":  # historique : bons étiquetés
+            return [{"id": b["id"], "name": b["name"], "origin": b["origin"], "partner_id": b["partner_id"], "carrier_tracking_ref": b["carrier_tracking_ref"],
+                     "date_done": "2026-10-23 08:30:00"} for b in etat["bons"] if b["carrier_tracking_ref"]]
+        if model == "res.partner" and meth == "read":
+            return [{"id": i, "name": next((b["client"] for b in etat["bons"] if b["id"] == i), ""), "parent_id": False} for i in a[0]]
         if model == "stock.picking" and meth == "search_read":  # commande liée à chaque bon (même n° que le bon, pour la démo)
             ids = a[0][0][2]
             return [{"id": b["id"], "name": b["name"], "sale_id": [b["id"], b["origin"]]} for b in etat["bons"] if b["id"] in ids]
@@ -107,6 +112,17 @@ def tester(v):
     return res
 
 
+def suivi(ens, cle, num):
+    """Suivi fictif : le colis est en route."""
+    return {"ok": True, "stat": "81", "etat": "En cours d'acheminement", "detail": "Prise en charge point relais le 23/10/26 à 15:10, Villeneuve (démo)",
+            "relais": "", "evenements": [{"date": "23/10/26", "heure": "08:31", "libelle": "Réception des données", "lieu": ""},
+                                         {"date": "23/10/26", "heure": "15:10", "libelle": "Prise en charge point relais", "lieu": "Villeneuve"}]}
+
+
+def etiquette_pdf(ens, cle, num, fmt="A4"):
+    raise RuntimeError("Démo : Mondial Relay n'a pas cette étiquette, seul le PDF de simulation existe.")
+
+
 _creer = mr.creer
 
 
@@ -125,6 +141,7 @@ def activer(a):
     """Branche la démo : fonctions réseau remplacées, réglages et PDF dans le dossier « demo »."""
     DOSSIER.mkdir(exist_ok=True)
     mr.ouvrir, mr.selection, mr.detail_relais, mr.creer = ouvrir, selection, detail_relais, creer  # changer_relais() reste le vrai
+    mr.suivi, mr.etiquette_pdf = suivi, etiquette_pdf
     rg.ODOO_ENV, rg.MR_ENV, rg.tester = DOSSIER / "odoo.env", DOSSIER / "mondialrelay.env", tester
     if not rg.ODOO_ENV.exists():
         rg.ecrire({"ODOO_URL": "https://demo.exemple.fr", "ODOO_DB": "demo", "ODOO_BASE_PROD": "", "ODOO_USER": "demo@exemple.fr", "ODOO_API_KEY": "demo-1234",
