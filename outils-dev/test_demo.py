@@ -154,6 +154,23 @@ def scenario(w):
     ev(w, "const c = document.querySelector('#h-recherche'); c.value = 'x'; c.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); 1"); time.sleep(0.5)
     verif(ev(w, "document.querySelector('#h-recherche').value + '|' + document.querySelectorAll('#historique .ligne-h').length") == "|3", "Échap vide la recherche : 3 lignes de nouveau")
     verif(ev(w, "Object.keys(etat.suivis).length") == 3, "suivis gardés en cache : Mondial Relay n'est pas réinterrogé à chaque frappe")
+    print("7a. historique gardé en session, cache des suivis", flush=True)
+    verif(ev(w, "document.querySelector('#maj-h').textContent").startswith("mis à jour à "), f"mention « {ev(w, chr(100) + 'ocument.querySelector(' + chr(39) + '#maj-h' + chr(39) + ').textContent')} »")
+    ev(w, "window.__hist = etat.hist; ouvrirReglages(false).then(() => ouvrirHistorique()).then(() => { window.__meme = etat.hist === window.__hist; }); 1"); time.sleep(1.5)
+    verif(ev(w, "window.__meme") is True and ev(w, "document.querySelectorAll('#historique .ligne-h').length") == 3, "retour sur l'onglet : liste réaffichée sans relire Odoo")
+    appels = []
+    suivi_demo = app.mr.suivi
+    app.mr.suivi = lambda *a: (appels.append(a[2]), suivi_demo(*a))[1]
+    s = appel(w, "suivi", l118["n_colis"]); verif(s["ok"] and appels == [], "suivi servi depuis le cache disque : aucun appel Mondial Relay")
+    s = appel(w, "suivi", l118["n_colis"], True); verif(s["ok"] and appels == [l118["n_colis"]], "suivi forcé (Actualiser) : un appel, colis non livré")
+    cache = json.loads((D / "demo" / "suivis.json").read_text(encoding="utf-8"))
+    verif(l118["n_colis"] in cache and cache[l118["n_colis"]]["r"]["stat"] == "81", "suivis.json écrit à côté des réglages de démo")
+    cache[l118["n_colis"]]["r"]["stat"] = "82"; (D / "demo" / "suivis.json").write_text(json.dumps(cache), encoding="utf-8")
+    del w._js_api._suivis_cache  # cache mémoire vidé : relu depuis le fichier
+    appels.clear(); s = appel(w, "suivi", l118["n_colis"], True); verif(s["stat"] == "82" and appels == [], "colis livré : jamais redemandé, même en forçant")
+    app.mr.suivi = suivi_demo
+    ev(w, "ouvrirHistorique(true).then(() => { window.__meme = etat.hist === window.__hist; }); 1"); time.sleep(2)
+    verif(ev(w, "window.__meme") is False and ev(w, "document.querySelectorAll('#historique .ligne-h').length") == 3, "« Actualiser » : liste relue")
     print("7b. impression multiple", flush=True)
     verif(ev(w, "document.querySelector('#b-imprimer-lot').disabled") is True, "bouton « Imprimer la sélection » inactif sans sélection")
     ev(w, "document.querySelectorAll('#historique .ligne-h .coche')[0].click(); document.querySelectorAll('#historique .ligne-h .coche')[2].click(); 1"); time.sleep(0.3)

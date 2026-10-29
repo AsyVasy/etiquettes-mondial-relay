@@ -408,14 +408,47 @@ class Api:
         return {"lignes": tri, "refus": sorted(refus, key=lambda r: r["date"], reverse=True), "jours": self.HISTORIQUE_JOURS,
                 "odoo": bool(odoo) or (self._c is not None and not erreur), "erreur": erreur, "sortie": str(Path(self._a.sortie).resolve())}
 
-    def suivi(self, num):
-        """Suivi Mondial Relay d'un n° de colis (gratuit)."""
-        if not num or (str(num).startswith("TEST") and not self._a.demo):
-            return {"ok": True, "stat": "", "etat": "Simulation", "detail": "aucun colis réel", "evenements": []}
+    # cache des suivis, à côté des réglages : un colis « Livré » n'est plus jamais redemandé, les autres le sont après SUIVI_FRAIS secondes
+    SUIVI_FRAIS = 600
+    SUIVI_GARDE = 60 * 86400
+
+    def _suivis(self):
+        if not hasattr(self, "_suivis_cache"):
+            self._suivis_chemin = Path(self._a.odoo).parent / "suivis.json"
+            try:
+                self._suivis_cache = json.loads(self._suivis_chemin.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                self._suivis_cache = {}
+        return self._suivis_cache
+
+    def _suivis_ecrire(self):
+        import time
+        cache = self._suivis()
+        limite = time.time() - self.SUIVI_GARDE
+        for k in [k for k, v in cache.items() if v.get("t", 0) < limite]:
+            del cache[k]
         try:
-            return mr.suivi(self._c["ens"], self._c["cle"], str(num))
-        except BaseException as e:
-            return {"ok": False, "stat": "", "etat": texte_erreur(e)}
+            self._suivis_chemin.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
+
+    def suivi(self, num, force=False):
+        """Suivi Mondial Relay d'un n° de colis (gratuit), servi depuis le cache quand il est encore valable ; force = redemander sauf si livré."""
+        import time
+        num = str(num or "")
+        if not num or (num.startswith("TEST") and not self._a.demo):
+            return {"ok": True, "stat": "", "etat": "Simulation", "detail": "aucun colis réel", "evenements": []}
+        cache, e = self._suivis(), self._suivis().get(num)
+        if e and e["r"].get("ok") and (e["r"].get("stat") == "82" or (not force and time.time() - e.get("t", 0) < self.SUIVI_FRAIS)):
+            return e["r"]
+        try:
+            r = mr.suivi(self._c["ens"], self._c["cle"], num)
+        except BaseException as ex:
+            return {"ok": False, "stat": "", "etat": texte_erreur(ex)}
+        if r.get("ok"):
+            cache[num] = {"t": time.time(), "r": r}
+            self._suivis_ecrire()
+        return r
 
     def _pdf_colis(self, num, fichier=None):
         """Chemin du PDF d'un colis : le fichier local s'il existe, sinon celui redemandé à Mondial Relay (gratuit), gardé dans sortie/recuperees.

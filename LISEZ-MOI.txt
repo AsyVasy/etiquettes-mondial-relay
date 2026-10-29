@@ -26,7 +26,8 @@ Chaque jour
   avec leur suivi Mondial Relay ; « PDF » rouvre le fichier de ce PC ou le redemande à Mondial Relay (gratuit).
   Le champ de recherche en haut filtre par commande, bon, client, relais ou n° de colis (Échap pour effacer).
   Cochez plusieurs lignes puis « Imprimer la sélection » : un seul PDF avec toutes ces étiquettes s'ouvre.
-  « Dossier » ouvre le dossier « sortie » dans l'Explorateur.
+  « Dossier » ouvre le dossier « sortie » dans l'Explorateur. La liste est lue une fois par session,
+  « Actualiser » la relit ; les suivis des colis livrés sont gardés dans suivis.json à côté des réglages.
 - En cas de problème : Réglages > « Rapport pour l'administrateur » crée un PDF dans « sortie »,
   sans clé ni nom de client, à joindre à votre message. Le fichier journal.log garde les derniers événements.
 - Un réglage à changer (clé expirée, imprimante) : « Réglages » en haut de la fenêtre.
