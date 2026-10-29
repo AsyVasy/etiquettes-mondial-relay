@@ -132,6 +132,15 @@
   .filtre-h { display: inline-flex; background: var(--champ); border-radius: 8px; padding: 3px; gap: 2px; margin-right: 8px; }
   .filtre-h button { border: 0; background: transparent; padding: 4px 12px; border-radius: 6px; font: inherit; font-size: 13px; color: var(--sec); cursor: pointer; white-space: nowrap; }
   .filtre-h button.actif { background: var(--carte); color: var(--txt); box-shadow: var(--ombre); }
+  .recherche-h { position: relative; display: flex; align-items: center; }
+  .recherche-h svg { position: absolute; left: 10px; width: 15px; height: 15px; color: var(--ter); pointer-events: none; }
+  .recherche-h input::-webkit-search-cancel-button { display: none; }
+  .recherche-h input { height: 34px; width: 232px; border: 1.5px solid transparent; border-radius: 9px; background: var(--champ); padding: 0 28px 0 31px; font-size: 13.5px; transition: border-color .12s, box-shadow .12s, background .12s; }
+  .recherche-h input::placeholder { color: var(--ter); }
+  .recherche-h input:focus { outline: 0; background: var(--carte); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,113,227,.18); }
+  .recherche-h .effacer { position: absolute; right: 6px; width: 20px; height: 20px; border: 0; border-radius: 10px; background: var(--ter); color: #fff; font-size: 12px; line-height: 20px; cursor: pointer; display: none; padding: 0; }
+  .recherche-h .effacer:hover { background: var(--sec); }
+  .recherche-h input:not(:placeholder-shown) + .effacer { display: block; }
 
   /* ---------- grille tarifaire ---------- */
   .outils-grille { display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; margin-bottom: 12px; align-items: stretch; }
@@ -275,6 +284,11 @@
       <p>Toutes les étiquettes des bons Odoo des 30 derniers jours, d'où qu'elles viennent, avec leur suivi. « PDF » rouvre le fichier de ce PC, ou le redemande à Mondial Relay.</p>
     </div>
     <div class="actions">
+      <div class="recherche-h">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="h-recherche" type="search" placeholder="Client, commande, colis…" spellcheck="false" autocomplete="off" oninput="rechercherHistorique(this.value)" onkeydown="if (event.key === 'Escape') { this.value = ''; rechercherHistorique(''); }">
+        <button class="effacer" type="button" tabindex="-1" title="Effacer" onclick="$('#h-recherche').value = ''; rechercherHistorique(''); $('#h-recherche').focus()">✕</button>
+      </div>
       <div class="filtre-h"><button id="hf-tous" class="actif" onclick="filtrerHistorique(false)">Tous</button><button id="hf-poste" onclick="filtrerHistorique(true)">Ce poste</button></div>
       <button class="btn" id="b-hist-actualiser" onclick="ouvrirHistorique()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
@@ -567,17 +581,33 @@
     montrerEcran("historique");
     const zone = $("#historique");
     zone.innerHTML = `<div class="vide">Lecture d'Odoo et du dossier « sortie »…</div>`;
+    etat.suivis = {};
     etat.hist = await api("historique");
     rendreHistorique();
   }
-  function lignesHistorique() { return (etat.hist ? etat.hist.lignes : []).filter((l) => !etat.histCePoste || l.ce_poste); }
+  const plat = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  function correspond(mots, ...champs) { const t = plat(champs.join(" ")); return mots.every((m) => t.includes(m)); }
+  function motsHistorique() { return plat(etat.histTexte).split(/\s+/).filter(Boolean); }
+  function lignesHistorique() {
+    const mots = motsHistorique();
+    return (etat.hist ? etat.hist.lignes : []).filter((l) => (!etat.histCePoste || l.ce_poste) && correspond(mots, l.commande, l.bon, l.client, l.relais, l.n_colis));
+  }
+  function refusHistorique() {
+    const mots = motsHistorique();
+    return (etat.hist ? etat.hist.refus || [] : []).filter((r) => correspond(mots, r.commande, r.bon, r.motif));
+  }
+  function rechercherHistorique(texte) {
+    etat.histTexte = texte;
+    if (etat.hist) rendreHistorique();
+  }
   function filtrerHistorique(cePoste) {
     etat.histCePoste = cePoste;
     $("#hf-tous").classList.toggle("actif", !cePoste); $("#hf-poste").classList.toggle("actif", cePoste);
     if (etat.hist) rendreHistorique();
   }
   function rendreHistorique() {
-    const zone = $("#historique"), lignes = lignesHistorique(), refus = etat.hist.refus || [];
+    const zone = $("#historique"), lignes = lignesHistorique(), refus = refusHistorique(), mots = motsHistorique();
+    const total = (etat.hist.lignes || []).length, rien = mots.length ? `Aucune étiquette ne correspond à « ${h(etat.histTexte.trim())} »${etat.histCePoste ? " sur ce poste" : ""}.` : "Aucune étiquette sur cette période.";
     // les chemins Windows (antislashs, guillemets) ne vont pas dans un attribut HTML : on les garde dans un tableau
     etat.chemins = [];
     const ref = (p) => etat.chemins.push(p) - 1;
@@ -593,8 +623,9 @@
             <span>${l.prix != null ? `≈ ${euros(l.prix)} HT` : ""}${l.facture_ttc != null ? `<small>facturé ${euros(l.facture_ttc)} TTC</small>` : ""}</span>
             <span class="suivi-h" id="suivi-${i}">…</span>
             <span class="actions-h"><button class="btn texte" onclick="ouvrirEtiquette(${i})">PDF</button>${l.dossier ? `<button class="btn texte" onclick="ouvrirChemin(${ref(l.dossier)})">Dossier</button>` : ""}</span>
-          </div>`).join("") : `<div class="vide">Aucune étiquette sur cette période.</div>`}
+          </div>`).join("") : `<div class="vide">${rien}</div>`}
       </div>
+      ${mots.length && lignes.length ? `<div class="info-h">${lignes.length} étiquette${lignes.length > 1 ? "s" : ""} sur ${total} pour « ${h(etat.histTexte.trim())} »${refus.length ? `, ${refus.length} refus` : ""}.</div>` : ""}
       ${refus.length ? `<div class="carte refus-h"><div class="tete">Refus sur ce poste (${refus.length})</div>${refus.map((r) => `
         <div class="ligne-r"><span>${dateCourte(r.date)}</span><span><b>${h(r.commande)}</b><small>${h(r.bon)}</small></span><span class="motif">${h(r.motif)}</span></div>`).join("")}</div>` : ""}
       ${etat.hist.odoo ? "" : `<div class="info-h">Odoo non interrogé (${h(etat.hist.erreur || "non connecté")}) : seules les créations de ce poste sont affichées.</div>`}`;
@@ -603,8 +634,10 @@
   async function chargerSuivis(lignes) {
     // un colis après l'autre, sans bloquer l'écran ; on s'arrête si l'écran a été re-rendu entre-temps
     const jeton = (etat.suiviJeton = (etat.suiviJeton || 0) + 1);
+    etat.suivis = etat.suivis || {};  // cache par n° de colis : la recherche re-rend la liste sans réinterroger Mondial Relay
     for (let i = 0; i < lignes.length; i++) {
-      const s = await api("suivi", lignes[i].n_colis);
+      const num = lignes[i].n_colis;
+      const s = etat.suivis[num] || (etat.suivis[num] = await api("suivi", num));
       const cell = $(`#suivi-${i}`);
       if (jeton !== etat.suiviJeton || !cell) return;
       cell.innerHTML = s.ok ? `${h(s.etat)}<small>${h(s.detail || "")}</small>` : `<span class="ko">${h(s.etat)}</span>`;

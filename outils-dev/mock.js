@@ -39,6 +39,7 @@ window.addEventListener("load", async () => {
   if (sc === "reglages") { await ouvrirReglages(false); await new Promise((r) => setTimeout(r, 200)); testerReglages(); document.activeElement.blur(); }
   if (sc === "reglages-echec") { window.pywebview.api.reglages_tester = () => P([[false, "Odoo : ÉCHEC — connexion refusée : identifiant, clé API ou nom de base incorrect (ou clé expirée)"], [false, "Mondial Relay : ÉCHEC — STAT 97 clé de sécurité invalide."]]); await ouvrirReglages(false); await new Promise((r) => setTimeout(r, 200)); testerReglages(); document.activeElement.blur(); }
   if (sc === "historique") { await ouvrirHistorique(); }
+  if (sc === "historique-recherche") { await ouvrirHistorique(); const c = document.querySelector("#h-recherche"); c.value = "dupont"; rechercherHistorique("dupont"); c.focus(); }
   if (sc === "tarifs") { await ouvrirTarifs(); document.querySelector("#t-palier").value = "1"; document.activeElement.blur(); }
   if (sc === "reglages-points") { await ouvrirReglages(false); await new Promise((r) => setTimeout(r, 200)); voir("r-ODOO_API_KEY", document.querySelector("#r-ODOO_API_KEY").nextElementSibling); document.activeElement.blur(); }
   if (sc === "reglages-aide") { await ouvrirReglages(false); await new Promise((r) => setTimeout(r, 200)); document.getElementById("r-ODOO_API_KEY").focus(); }
