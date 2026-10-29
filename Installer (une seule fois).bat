@@ -39,7 +39,7 @@ echo   Python trouve :
 
 echo.
 echo Etape 2 sur 4 : bibliotheques (pypdf, pywebview)
-%PY% -m pip install --quiet --disable-pip-version-check --no-warn-script-location pypdf pywebview || (
+%PY% -m pip install --quiet --disable-pip-version-check --no-warn-script-location "pypdf>=6,<7" "pywebview>=6,<7" || (
   echo   Echec de l'installation des bibliotheques. Verifiez la connexion internet, puis relancez ce fichier.
   goto fin_erreur
 )

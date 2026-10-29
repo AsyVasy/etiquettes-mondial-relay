@@ -110,6 +110,35 @@ def scenario(w):
     verif(all(f["n_colis"].startswith("TEST") for f in r["faits"]), "n° de colis fictifs TEST…")
     refus = list(Path(r["pdf"]).parent.glob("refus-*.csv")); lignes_refus = refus[0].read_text(encoding="utf-8-sig").splitlines() if refus else []
     verif(len(refus) == 1 and len(lignes_refus) == 2 and lignes_refus[1].startswith("S01255;WH/OUT/00127;14;3000;099999;FR;;;"), f"trace du refus écrite à côté du PDF : {lignes_refus[1][:60] if len(lignes_refus) > 1 else refus}")
+    print("4b. pas de seconde étiquette payée", flush=True)
+    r = appel(w, "creer", [{"bon": "WH/OUT/00118", "poids": "1,25"}, {"bon": "WH/OUT/00118", "poids": "1,25"}])
+    verif(r["ok"] and not r["faits"] and len(r["echecs"]) == 1 and "plus dans la liste" in r["echecs"][0]["motif"] and r["echecs"][0].get("deja"),
+          f"bon déjà étiqueté redemandé (en double) : refusé sans création : {r['echecs'][0]['motif'] if r.get('echecs') else r}")
+    demo = sys.modules["demo"]; b127 = next(b for b in demo.etat["bons"] if b["name"] == "WH/OUT/00127")
+    b127["carrier_tracking_ref"] = "AUTRE1"  # comme si un autre poste venait d'écrire le n° dans Odoo
+    r = appel(w, "creer", [{"bon": "WH/OUT/00127", "poids": "3"}])
+    b127["carrier_tracking_ref"] = False
+    verif(r["ok"] and not r["faits"] and r["echecs"] and "AUTRE1" in r["echecs"][0]["motif"], f"n° écrit entre-temps dans Odoo : relu, rien n'est refait : {r['echecs'][0]['motif'] if r.get('echecs') else r}")
+    # vrai flux de l'écran : 00118 encore affiché (l'écran n'a pas été actualisé), on le crée -> refusé « déjà », et il quitte la liste sans « OK »
+    ev(w, "for (const l of etat.prets) etat.pris[l.bon] = l.bon === 'WH/OUT/00118'; etat.poids['WH/OUT/00118'] = '1,25'; creer(); 1")
+    for _ in range(20):
+        if "Aucune étiquette créée" in str(ev(w, "(document.querySelector('.feuille h2') || {textContent: ''}).textContent")): break
+        time.sleep(0.5)
+    verif(ev(w, "document.querySelectorAll('#lignes .ligne').length") == 3 and ev(w, "etat.prets.some(l => l.bon === 'WH/OUT/00118')") is False,
+          f"côté écran, le bon refusé « déjà étiqueté » a quitté la liste sans attendre « OK » : {ev(w, 'etat.prets.map(l => l.bon).join()')}")
+    ev(w, "fermerFeuille(); 1")
+    print("4c. durcissements de l'audit", flush=True)
+    import re as _re, webview.http as _wh
+    src = (D / "interface.html").read_text(encoding="utf-8")
+    verif(not _re.search(r'on[a-z]+="[^"]*\$\{h\(', src), "aucune valeur venue d'Odoo n'est insérée dans un gestionnaire JavaScript")
+    verif(_wh.global_server is None, "pas de serveur HTTP local pywebview : le dossier des clés n'est pas servi")
+    verif(app.mr.nom_fichier("WH/OUT/00118") == "WH-OUT-00118" and app.mr.nom_fichier("..\\..\\x") == "x" and app.mr.nom_fichier("C:/a/b") == "C-a-b", "nom de fichier d'un bon : jamais un chemin")
+    verif(app.mr.cellule("=1+1") == "'=1+1" and app.mr.cellule("DUPONT") == "DUPONT" and app.mr.decellule("'=1+1") == "=1+1", "cellules CSV neutralisées contre les formules")
+    def refuse(u, f):
+        try: app.mr.controler_redirection(u, f); return False
+        except RuntimeError: return True
+    verif(refuse("https://a.exemple.fr", "http://a.exemple.fr/x") and refuse("https://a.exemple.fr", "https://b.exemple.fr/x")
+          and not refuse("https://a.exemple.fr", "https://a.exemple.fr/web") and not refuse("http://a.exemple.fr", "https://a.exemple.fr/"), "redirection Odoo : HTTPS et même domaine imposés")
     print("5. actualisation", flush=True)
     r = appel(w, "lister"); bons = [x["bon"] for x in r["prets"]]; verif("WH/OUT/00127" in bons and not any(b in bons for b in ("WH/OUT/00118", "WH/OUT/00121", "WH/OUT/00125")), f"après création, les 3 colis étiquetés ont disparu, celui en échec reste → {bons}")
     r = appel(w, "lister"); verif(len(r["prets"]) == 2 and not r["refus"] and any(x["bon"] == "WH/OUT/00130" for x in r["prets"]), "après deux actualisations, le bon en attente est validé et apparaît")

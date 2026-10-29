@@ -4,6 +4,9 @@ mondialrelay.env
 tarifs.json
 # Produit par l'outil
 sortie/
+journal.log
+suivis.json
+rapport-*.pdf
 demo/
 __pycache__/
 *.pyc

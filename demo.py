@@ -40,6 +40,8 @@ class FauxOdoo:
         if model == "stock.picking" and meth == "search_read" and a[0] and a[0][0][0] == "carrier_id.is_mondialrelay":  # historique : bons étiquetés
             return [{"id": b["id"], "name": b["name"], "origin": b["origin"], "partner_id": b["partner_id"], "carrier_tracking_ref": b["carrier_tracking_ref"],
                      "date_done": "2026-10-23 08:30:00"} for b in etat["bons"] if b["carrier_tracking_ref"]]
+        if model == "stock.picking" and meth == "read":  # relecture avant création : le n° déjà écrit ?
+            return [{"id": b["id"], "carrier_tracking_ref": b["carrier_tracking_ref"]} for b in etat["bons"] if b["id"] in a[0]]
         if model == "res.partner" and meth == "read":
             return [{"id": i, "name": next((b["client"] for b in etat["bons"] if b["id"] == i), ""), "parent_id": False} for i in a[0]]
         if model == "stock.picking" and meth == "search_read":  # commande liée à chaque bon (même n° que le bon, pour la démo)

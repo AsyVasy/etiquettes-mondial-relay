@@ -164,10 +164,15 @@ class Api:
         """Fichier déposé sur l'écran Grille tarifaire → texte brut, que la page analyse comme un tableau collé."""
         try:
             octets = base64.b64decode(contenu_b64.split(",", 1)[-1])
+            if len(octets) > 10 * 1024 * 1024:
+                return {"erreur": "Fichier trop gros (plus de 10 Mo) : une grille tarifaire tient sur quelques pages."}
             suffixe = Path(nom).suffix.lower()
             if suffixe == ".pdf":
                 from pypdf import PdfReader
-                texte = "\n".join((page.extract_text() or "") for page in PdfReader(io.BytesIO(octets)).pages)
+                lecteur = PdfReader(io.BytesIO(octets))
+                if len(lecteur.pages) > 40:
+                    return {"erreur": f"PDF de {len(lecteur.pages)} pages : une grille tarifaire tient sur quelques pages."}
+                texte = "\n".join((page.extract_text() or "") for page in lecteur.pages)
                 if not texte.strip():
                     return {"erreur": "Ce PDF ne contient pas de texte lisible (image scannée ?). Collez le tableau à la main."}
                 return {"texte": texte}
@@ -250,7 +255,7 @@ class Api:
             return {}
 
     def _ligne(self, bon):
-        return next(l for l in self._prets if l[0]["name"] == bon)
+        return next((l for l in self._prets if l[0]["name"] == bon), None)
 
     def changer_relais(self, bon, valeur):
         valeur = valeur.strip().upper()
@@ -295,18 +300,41 @@ class Api:
         if v["fautes"]:
             return {"ok": False, "erreur": "Poids manquant ou pas compris."}
         try:
-            prets = []
+            prets, echecs = [], []
+            vus = set()
             for l in lignes:
-                b, p, relais = self._ligne(l["bon"])
+                if l["bon"] in vus:
+                    continue
+                vus.add(l["bon"])
+                t = self._ligne(l["bon"])
+                if t is None:
+                    echecs.append((l["bon"], "n'est plus dans la liste (déjà étiqueté ?) : cliquez sur « Actualiser »", True)); continue
+                b, p, relais = t
                 mr.mettre_poids(p, v["kg"][l["bon"]])
                 prets.append((b, p, relais))
+            # relecture d'Odoo à l'instant : un bon qui a reçu un n° entre-temps (autre poste, création précédente) n'est jamais refait
+            deja = {}
+            if prets:
+                lus = self._c["o"]("stock.picking", "read", [b["id"] for b, _, _ in prets], fields=["carrier_tracking_ref"])
+                deja = {r["id"]: r.get("carrier_tracking_ref") for r in (lus if isinstance(lus, list) else [])}
+            for b, _, _ in prets:
+                if deja.get(b["id"]):
+                    echecs.append((b["name"], f"a déjà un n° de suivi ({deja[b['id']]}) écrit dans Odoo : rien n'est refait", True))
+            prets = [t for t in prets if not deja.get(t[0]["id"])]
+            self._prets = [t for t in self._prets if t[0]["name"] not in {bon for bon, _, _ in echecs}]
+            if not prets:
+                self._j("création : rien à faire" + "".join(f" | {bon} : {why}" for bon, why, _ in echecs))
+                return {"ok": True, "pdf": None, "faits": [], "echecs": [{"bon": bon, "commande": bon, "motif": why, "deja": True} for bon, why, _ in echecs]}
             tape = {l["bon"]: str(l.get("poids", "")).strip() for l in lignes}
             self._j(f"création demandée : {len(prets)} colis, " + ", ".join(
                 f"{b['name']} tapé « {tape.get(b['name'], '')} » -> {p['Poids']} g (Odoo {b.get('shipping_weight') or b.get('weight') or 0} kg)" for b, p, _ in prets))
             with self._verrou:
-                total, faits, echecs = mr.creer(self._c, prets, self._a.sortie, dire=lambda *_: None)
+                total, faits, echecs_mr = mr.creer(self._c, prets, self._a.sortie, dire=lambda *_: None)
+            faits_noms = {f["bon"] for f in faits}
+            self._prets = [t for t in self._prets if t[0]["name"] not in faits_noms]  # plus jamais reproposés sans relecture
+            echecs = [(b["name"], b["origin"] or b["name"], why, False) for b, why in echecs_mr] + [(bon, bon, why, True) for bon, why, _ in echecs]
             self._j(f"création : {len(faits)} faite(s), {len(echecs)} refus" + "".join(f" | {f['bon']} -> n° {f['n_colis']}" for f in faits)
-                    + "".join(f" | {b['name']} : {why}" for b, why in echecs))
+                    + "".join(f" | {bon} : {why}" for bon, _, why, _ in echecs))
             self._pdf = str(total) if total else None
             if total:
                 # complément pour l'Historique (pays du relais et prix estimé par bon) : fichier à part, le moteur n'y touche pas
@@ -317,7 +345,7 @@ class Api:
                 (total.parent / "complement.json").write_text(json.dumps(complement, ensure_ascii=False), encoding="utf-8")
                 os.startfile(total)  # ouvre le PDF pour l'imprimer
             return {"ok": True, "pdf": self._pdf, "faits": faits,
-                    "echecs": [{"bon": b["name"], "commande": b["origin"] or b["name"], "motif": why} for b, why in echecs]}
+                    "echecs": [{"bon": bon, "commande": cmd, "motif": why, "deja": deja} for bon, cmd, why, deja in echecs]}
         except BaseException as e:
             self._j(f"création : erreur {texte_erreur(e)}")
             return {"ok": False, "erreur": texte_erreur(e)}
@@ -347,12 +375,13 @@ class Api:
                     continue
                 with open(f, encoding="utf-8-sig", newline="") as fh:
                     for r in csv.DictReader(fh, delimiter=";"):
+                        r = {k: mr.decellule(v) for k, v in r.items()}
                         bon = r.get("bon", "")
                         if nom == "refus":
                             refus.append({"date": date, "bon": bon, "commande": r.get("commande", ""), "stat": r.get("stat", ""),
                                           "poids_g": r.get("poids_g", ""), "motif": r.get("motif", "")})
                         elif bon not in lignes:  # la création la plus récente l'emporte
-                            fichier, pdf = d / f"{bon.replace('/', '-')}.pdf", d / f"etiquettes-{d.name}.pdf"
+                            fichier, pdf = d / f"{mr.nom_fichier(bon)}.pdf", d / f"etiquettes-{d.name}.pdf"
                             comp = complement.get(bon, {})
                             lignes[bon] = {"date": date, "commande": r.get("commande", ""), "bon": bon, "client": r.get("client", ""),
                                            "relais": r.get("relais", ""), "n_colis": r.get("n_colis", ""), "poids_g": r.get("poids_g", ""),
@@ -684,7 +713,8 @@ def main():
     except Exception:
         pass
     api = Api(a)
-    api._fenetre = webview.create_window(TITRE, url=str(ICI / "interface.html"), js_api=api, width=1060, height=700,
+    # html= (et non url=) : avec un fichier local, pywebview démarrerait un serveur HTTP qui servirait tout le dossier, clés comprises
+    api._fenetre = webview.create_window(TITRE, html=(ICI / "interface.html").read_text(encoding="utf-8"), js_api=api, width=1060, height=700,
                                         min_size=(900, 620), frameless=True, easy_drag=False, shadow=True,
                                         background_color="#F5F5F7", text_select=False)
     try:

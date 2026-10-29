@@ -49,15 +49,43 @@ def load_env(path):
     return env
 
 
+def controler_redirection(url, final):
+    """L'adresse finale d'une redirection doit rester en HTTPS et sur le même domaine : la clé API part vers cette adresse."""
+    from urllib.parse import urlsplit
+    d, f = urlsplit(url), urlsplit(final)
+    local = (d.hostname or "").lower() in ("localhost", "127.0.0.1")
+    if f.scheme != "https" and not (local and f.scheme == "http"):
+        raise RuntimeError(f"Odoo : l'adresse finale n'est pas en HTTPS ({final}) : connexion refusée, la clé API ne doit pas circuler en clair")
+    if (f.hostname or "").lower() != (d.hostname or "").lower():
+        raise RuntimeError(f"Odoo : redirigé vers un autre domaine ({f.hostname} au lieu de {d.hostname}) : connexion refusée")
+    return final
+
+
 def resolve_redirect(url):
-    """Suit un éventuel 301/302 sur /xmlrpc/2/common (xmlrpc.client ne le fait pas)."""
+    """Suit un éventuel 301/302 sur /xmlrpc/2/common (xmlrpc.client ne le fait pas), en refusant une sortie de HTTPS ou de domaine."""
     req = urllib.request.Request(f"{url}/xmlrpc/2/common", method="HEAD")
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             final = resp.geturl()
     except urllib.error.HTTPError as e:
         final = e.geturl()
-    return final.rsplit("/xmlrpc/2/common", 1)[0].rstrip("/")
+    return controler_redirection(url, final).rsplit("/xmlrpc/2/common", 1)[0].rstrip("/")
+
+
+def nom_fichier(bon):
+    """Nom de fichier sûr tiré du nom d'un bon : WH/OUT/00118 -> WH-OUT-00118, rien d'autre que lettres, chiffres, point, tiret."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", str(bon)).strip(".-") or "bon"
+
+
+def cellule(v):
+    """Cellule CSV neutralisée : un texte commençant par = + - @ serait exécuté comme formule par un tableur."""
+    s = "" if v is None else str(v)
+    return "'" + s if s and s[0] in "=+-@" else s
+
+
+def decellule(s):
+    """Inverse de cellule() pour relire nos propres CSV."""
+    return s[1:] if isinstance(s, str) and len(s) > 1 and s[0] == "'" and s[1] in "=+-@" else s
 
 
 def txt(s, n, ville=False):
@@ -291,7 +319,7 @@ def creer(c, prets, sortie, dire=print):
     def echec(b, p, stat, why, brut=""):
         refus.append((b, p, stat, why, brut)); dire(f"  ÉCHEC  {b['origin']} : {why}")
     for b, p, relais in prets:
-        fichier = out / f"{b['name'].replace('/', '-')}.pdf"
+        fichier = out / f"{nom_fichier(b['name'])}.pdf"
         if reel:
             get = soap("WSI2_CreationEtiquette", CHAMPS, p, c["cle"], "<Texte></Texte>")
             stat, num, url = get("STAT"), get("ExpeditionNum"), get("URL_Etiquette")
@@ -325,7 +353,7 @@ def creer(c, prets, sortie, dire=print):
         with open(out / f"refus-{stamp}.csv", "w", newline="", encoding="utf-8-sig") as f:
             w = csv.writer(f, delimiter=";")
             w.writerow(["commande", "bon", "stat", "poids_g", "relais", "pays_relais", "cp", "pays", "motif", "reponse"])
-            w.writerows([b["origin"], b["name"], stat, p.get("Poids"), p.get("LIV_Rel"), p.get("LIV_Rel_Pays"), p.get("Dest_CP"), p.get("Dest_Pays"), why, brut[:1000]]
+            w.writerows([cellule(x) for x in (b["origin"], b["name"], stat, p.get("Poids"), p.get("LIV_Rel"), p.get("LIV_Rel_Pays"), p.get("Dest_CP"), p.get("Dest_Pays"), why, brut[:1000])]
                         for b, p, stat, why, brut in refus)
     echecs = [(b, why) for b, _, _, why, _ in refus]
     if not faits:
@@ -334,7 +362,7 @@ def creer(c, prets, sortie, dire=print):
     with open(total, "wb") as f:
         pdf.write(f)
     with open(out / f"recap-{stamp}.csv", "w", newline="", encoding="utf-8-sig") as f:
-        w = csv.DictWriter(f, fieldnames=list(faits[0]), delimiter=";"); w.writeheader(); w.writerows(faits)
+        w = csv.DictWriter(f, fieldnames=list(faits[0]), delimiter=";"); w.writeheader(); w.writerows({k: cellule(v) for k, v in f_.items()} for f_ in faits)
     return total, faits, echecs
 
 
