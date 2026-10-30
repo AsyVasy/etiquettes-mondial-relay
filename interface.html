@@ -894,11 +894,11 @@
         <div class="carte tuile l2" id="s-cout">
           <h3><span class="titre">Coût et facturé · ${PERIODES[jours]}</span></h3>
           <div class="paires">
-            <span title="Les trois lignes portent sur les mêmes ${h(pluriel(s.deux, "étiquette"))} : créées sur ce PC (coût d'après la grille tarifaire des Réglages) et liées à une commande Odoo (frais de port facturés).${s.sansCout ? ` ${s.sansCout} étiquette(s) de ce PC sans coût connu, non comptées.` : ""}">Coût estimé HT <span class="src poste">Ce poste</span></span><span>${s.deux ? eurosG(s.coutBase) : "—"}</span>
-            <span title="Frais de port HT facturés sur les commandes de ces mêmes ${h(pluriel(s.deux, "étiquette"))}.">Facturé aux clients HT <span class="src odoo">Odoo</span></span><span>${s.deux ? eurosG(s.factureBase) : "—"}</span>
-            <span class="total" title="Facturé moins coût estimé, sur ces mêmes ${h(pluriel(s.deux, "étiquette"))}.">Écart</span><span class="total${s.deux ? (s.ecart >= 0 ? " ok" : " ko") : ""}">${s.deux ? (s.ecart >= 0 ? "+ " : "") + eurosG(s.ecart) : "—"}</span>
+            <span title="D'après la grille tarifaire des Réglages, pour les ${h(pluriel(s.couts, "étiquette"))} créées sur ce PC sur la période${s.sansCout ? ` (${s.sansCout} sans coût connu)` : ""}.">Coût estimé HT <span class="src poste">Ce poste</span></span><span>${s.couts ? eurosG(s.cout) : "—"}</span>
+            <span title="Frais de port HT facturés sur les ${h(pluriel(s.factures, "commande"))} Odoo de la période, tous postes ; ${h(eurosG(s.factureTTC))} TTC.">Facturé aux clients HT <span class="src odoo">Odoo</span></span><span>${s.factures ? eurosG(s.factureHT) : "—"}</span>
+            <span class="total" title="Sur les ${h(pluriel(s.deux, "étiquette"))} créées sur ce PC et liées à une commande : facturé ${h(eurosG(s.factureBase))} HT moins coût estimé ${h(eurosG(s.coutBase))} HT.">Écart <span class="src poste">Ce poste</span></span><span class="total${s.deux ? (s.ecart >= 0 ? " ok" : " ko") : ""}">${s.deux ? (s.ecart >= 0 ? "+ " : "") + eurosG(s.ecart) : "—"}</span>
           </div>
-          <div class="sous">${sep(s.deux ? `sur ${pluriel(s.deux, "étiquette")} de ce poste` : "", s.factures ? `toutes commandes confondues, facturé ${eurosG(s.factureHT)} HT` : "", s.offertes ? pluriel(s.offertes, "offerte") : "")}</div>
+          <div class="sous">${s.couts ? sep(s.deux ? `écart sur ${pluriel(s.deux, "étiquette")} de ce poste (facturé ${eurosG(s.factureBase)} HT sur celles-ci)` : "", s.offertes ? pluriel(s.offertes, "livraison offerte", "livraisons offertes") : "") : sep("aucune étiquette créée sur ce PC sur la période : coût et écart inconnus", s.offertes ? pluriel(s.offertes, "livraison offerte", "livraisons offertes") : "")}</div>
         </div>
         <div class="carte tuile l2" id="s-poids">
           <h3><span class="titre">Poids pesé</span><span class="src poste">Ce poste</span></h3>
