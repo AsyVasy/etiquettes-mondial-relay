@@ -502,7 +502,8 @@ class Api:
                 "tranches": grille["tranches"], "grille": any(v is not None for p in grille["pays"].values() for v in p),
                 "prepaye": self.prepaye_lire()}
 
-    # dernière recharge du compte prépayé, saisie par l'utilisateur : le solde affiché est une estimation (montant − coût estimé des créations de ce poste)
+    # dernière recharge du compte prépayé (TTC, comme l'historique du compte sur mondialrelay.fr), saisie par l'utilisateur :
+    # le solde affiché est une estimation (montant − coût estimé TTC des créations de ce poste, soit grille HT + 20 % de TVA)
     def _prepaye_chemin(self):
         return Path(self._a.odoo).parent / "prepaye.json"  # à côté des réglages, comme suivis.json
 
@@ -514,7 +515,7 @@ class Api:
             return None
 
     def prepaye_enregistrer(self, montant, date):
-        """Montant HT et date (AAAA-MM-JJ) de la dernière recharge ; montant vide = ne plus suivre le solde."""
+        """Montant TTC et date (AAAA-MM-JJ) de la dernière recharge ; montant vide = ne plus suivre le solde."""
         try:
             m = "".join(str(montant or "").replace(",", ".").replace("€", "").split())
             if not m:
@@ -528,7 +529,7 @@ class Api:
             if jour > datetime.now().date():
                 return {"ok": False, "erreur": "La date de la recharge ne peut pas être dans le futur."}
             self._prepaye_chemin().write_text(json.dumps({"montant": valeur, "date": jour.isoformat()}), encoding="utf-8")
-            self._j(f"compte prépayé : recharge de {valeur:.2f} € HT le {jour.isoformat()}")
+            self._j(f"compte prépayé : recharge de {valeur:.2f} € TTC le {jour.isoformat()}")
             return {"ok": True, "prepaye": {"montant": valeur, "date": jour.isoformat()}}
         except ValueError:
             return {"ok": False, "erreur": "Il faut un montant en euros (ex. 500 ou 250,50) et une date."}

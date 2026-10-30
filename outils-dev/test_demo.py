@@ -239,8 +239,8 @@ def scenario(w):
     verif(ev(w, "ouvrirStats(true).then(()=>{window.__s=document.querySelectorAll('#stats .tuile').length + '|' + document.querySelector('#segments .actif').textContent.trim() + '|' + document.querySelector('#s-volume .chiffre').firstChild.textContent + '|' + document.querySelector('#s-solde .chiffre').firstChild.textContent + '|' + document.querySelector('#maj-s').textContent}); 1") == 1, "écran Statistiques demandé")
     time.sleep(2.5)
     cout = sum(l["prix"] for l in st["lignes"])
-    attendu = f"5|Statistiques|3|≈ {500 - cout:.2f} €".replace(".", ",")
-    verif(str(ev(w, "window.__s")).startswith(attendu + "|") and re.fullmatch(r"\d\d:\d\d", str(ev(w, "window.__s")).split("|")[-1]), f"écran Statistiques : 5 tuiles, 3 étiquettes, solde = 500 € − coût estimé ({cout:.2f} €), heure de lecture : {ev(w, 'window.__s')}")
+    attendu = f"5|Statistiques|3|≈ {500 - cout * 1.2:.2f} €".replace(".", ",")  # le compte prépayé est débité TTC
+    verif(str(ev(w, "window.__s")).startswith(attendu + "|") and re.fullmatch(r"\d\d:\d\d", str(ev(w, "window.__s")).split("|")[-1]), f"écran Statistiques : 5 tuiles, 3 étiquettes, solde = 500 € − coût estimé TTC ({cout:.2f} € HT × 1,2), heure de lecture : {ev(w, 'window.__s')}")
     verif("3 · 100 %" in str(ev(w, "document.querySelector('#s-pays .repartition').textContent")) and ev(w, "document.querySelectorAll('#s-poids .repartition .jauge').length") >= 1
           and ev(w, "document.querySelector('#s-cout .total.ko').textContent") == "− 15,94 €", "tuiles pays (France 100 %), poids par tranche, écart coût/facturé = 10,66 − 26,60 € en rouge")
     ev(w, "periodeStats(30); 1"); time.sleep(0.5)
