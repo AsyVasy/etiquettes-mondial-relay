@@ -137,29 +137,29 @@
   .info-h { color: var(--sec); font-size: 13px; padding: 10px 4px; }
 
   /* ---------- statistiques ---------- */
-  .stats { padding-bottom: 22px; }
-  .tuiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
-  .tuile { padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .stats { padding-bottom: 8px; }  /* tout tient dans la fenêtre par défaut (1060 × 700) sans défilement */
+  .tuiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+  .tuile { padding: 13px 18px; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
   .tuile.l4 { grid-column: span 4; } .tuile.l2 { grid-column: span 2; }
   @media (max-width: 880px) { .tuile.l4 { grid-column: span 6; } .tuile.l2 { grid-column: span 3; } }
   .tuile h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--sec); }
   .tuile .chiffre { font: 600 30px/1.1 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
   .tuile .chiffre .n { white-space: nowrap; }
   .tuile .chiffre small { font: 500 14px/1.2 "Segoe UI", system-ui, sans-serif; color: var(--sec); letter-spacing: 0; margin-left: 8px; white-space: nowrap; }
-  .tuile .sous { color: var(--sec); font-size: 13px; line-height: 1.45; }
+  .tuile .sous { color: var(--sec); font-size: 12.5px; line-height: 1.4; }
   .tuile .sous b { color: var(--txt); font-weight: 600; }
-  .tuile .boutons-tuile { padding-top: 4px; margin-left: -8px; }
+  .tuile .boutons-tuile { padding-top: 2px; margin-left: -8px; }
   .solde.bas .chiffre { color: var(--orange); } .solde.epuise .chiffre { color: var(--rouge); }
-  .barres { display: flex; align-items: flex-end; gap: 3px; height: 96px; margin-top: 10px; }
+  .barres { display: flex; align-items: flex-end; gap: 3px; height: 66px; margin-top: 8px; }
   .barres div { flex: 1; min-width: 0; background: var(--accent); border-radius: 3px 3px 0 0; opacity: .8; transition: opacity .12s; }
   .barres div:hover { opacity: 1; } .barres div.sans { background: var(--sep); }
-  .axes { display: flex; gap: 3px; margin-top: 5px; font-size: 11px; color: var(--ter); }
+  .axes { display: flex; gap: 3px; margin-top: 4px; font-size: 11px; color: var(--ter); }
   .axes span { flex: 1; min-width: 0; text-align: center; overflow: hidden; white-space: nowrap; }
-  .repartition { display: grid; grid-template-columns: auto 1fr auto; gap: 5px 10px; align-items: center; font-size: 13px; margin-top: 6px; }
+  .repartition { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: center; font-size: 12.5px; margin-top: 4px; }
   .repartition .jauge { height: 8px; background: var(--champ); border-radius: 4px; overflow: hidden; }
   .repartition .jauge i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
   .repartition .n { color: var(--sec); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-  .paires { display: grid; grid-template-columns: 1fr auto; gap: 7px 14px; font-size: 13.5px; margin-top: 4px; align-items: baseline; }
+  .paires { display: grid; grid-template-columns: 1fr auto; gap: 6px 14px; font-size: 13.5px; margin-top: 2px; align-items: baseline; }
   .paires span:nth-child(2n) { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
   .paires span small { display: block; color: var(--sec); font-size: 12px; font-weight: 400; line-height: 1.3; }
   .paires .total { border-top: .5px solid var(--sep); padding-top: 7px; font-weight: 600; } .paires .ok { color: var(--vert); } .paires .ko { color: var(--rouge); }
@@ -349,7 +349,7 @@
   <div class="entete">
     <div>
       <h1 id="h1-stats">Statistiques</h1>
-      <p>Étiquettes des bons Odoo des 12 derniers mois, d'où qu'elles viennent. Le poids pesé et le coût estimé ne sont connus que pour les étiquettes créées sur ce poste.</p>
+      <p>Bons Odoo des 12 derniers mois, d'où qu'ils viennent. Poids et coût estimé : créations de ce poste seulement.</p>
     </div>
     <div class="actions">
       <div class="filtre-h" id="s-periodes"><button id="sp-30" onclick="periodeStats(30)">30 jours</button><button id="sp-90" onclick="periodeStats(90)">3 mois</button><button id="sp-365" class="actif" onclick="periodeStats(365)">12 mois</button></div>
@@ -886,7 +886,7 @@
             <span>Facturé aux clients HT<small>${pluriel(s.factures, "commande")}${s.offertes ? `, dont ${pluriel(s.offertes, "livraison")} offerte${s.offertes > 1 ? "s" : ""}` : ""}</small></span><span>${s.factures ? eurosG(s.factureHT) : "—"}</span>
             <span class="total">Écart<small>sur ${pluriel(s.deux, "étiquette")} où les deux sont connus</small></span><span class="total${s.deux ? (s.ecart >= 0 ? " ok" : " ko") : ""}">${s.deux ? (s.ecart >= 0 ? "+ " : "") + eurosG(s.ecart) : "—"}</span>
           </div>
-          <div class="sous">${s.factures ? `Facturé TTC : ${eurosG(s.factureTTC)}. ` : ""}${s.coutOffertes ? `Les livraisons offertes ont coûté ≈ ${eurosG(s.coutOffertes)} HT. ` : ""}Coût d'après la grille tarifaire, jamais un prix garanti.</div>
+          <div class="sous">${s.factures ? `Facturé TTC : ${eurosG(s.factureTTC)}. ` : ""}${s.coutOffertes ? `Coût des livraisons offertes : ≈ ${eurosG(s.coutOffertes)} HT. ` : ""}Coût estimé d'après la grille tarifaire.</div>
         </div>
         <div class="carte tuile l2" id="s-poids">
           <h3>Poids pesé · ${pluriel(s.peses, "étiquette")} de ce poste</h3>
