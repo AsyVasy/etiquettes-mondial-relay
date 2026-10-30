@@ -6,6 +6,7 @@ tarifs.json
 sortie/
 journal.log
 suivis.json
+prepaye.json
 rapport-*.pdf
 demo/
 __pycache__/

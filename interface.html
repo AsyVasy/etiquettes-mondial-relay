@@ -31,7 +31,8 @@
   .appli { display: flex; align-items: center; gap: 10px; padding: 0 16px; font-weight: 600; font-size: 14px; pointer-events: none; }
   .appli .logo { width: 24px; height: 24px; border-radius: 7px; background: var(--accent); display: grid; place-items: center; }
   .appli .logo svg { width: 15px; height: 15px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .segments { position: absolute; left: 50%; transform: translateX(-50%); display: flex; padding: 3px; border-radius: 10px; background: #EFEFF2; }
+  .segments { display: flex; padding: 3px; border-radius: 10px; background: #EFEFF2; }
+  .barre > .segments { position: absolute; left: 50%; transform: translateX(-50%); }  /* vraiment centré (la règle « > :not(.zone) » ci-dessus le remettait en flux) */
   .segments button { height: 30px; padding: 0 16px; border: 0; border-radius: 8px; background: transparent; font-weight: 500; color: var(--sec); display: inline-flex; align-items: center; gap: 7px; transition: background .12s, color .12s; }
   .segments button:hover { color: var(--txt); }
   .segments button.actif { background: var(--carte); color: var(--txt); box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 .5px rgba(0,0,0,.05); }
@@ -134,6 +135,36 @@
   .ligne-r { display: grid; grid-template-columns: 112px 220px 1fr; gap: 10px; padding: 7px 18px; border-top: .5px solid var(--sep); font-size: 13px; }
   .ligne-r .motif { color: var(--rouge); }
   .info-h { color: var(--sec); font-size: 13px; padding: 10px 4px; }
+
+  /* ---------- statistiques ---------- */
+  .stats { padding-bottom: 22px; }
+  .tuiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+  .tuile { padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .tuile.l4 { grid-column: span 4; } .tuile.l2 { grid-column: span 2; }
+  @media (max-width: 880px) { .tuile.l4 { grid-column: span 6; } .tuile.l2 { grid-column: span 3; } }
+  .tuile h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--sec); }
+  .tuile .chiffre { font: 600 30px/1.1 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .tuile .chiffre .n { white-space: nowrap; }
+  .tuile .chiffre small { font: 500 14px/1.2 "Segoe UI", system-ui, sans-serif; color: var(--sec); letter-spacing: 0; margin-left: 8px; white-space: nowrap; }
+  .tuile .sous { color: var(--sec); font-size: 13px; line-height: 1.45; }
+  .tuile .sous b { color: var(--txt); font-weight: 600; }
+  .tuile .boutons-tuile { padding-top: 4px; margin-left: -8px; }
+  .solde.bas .chiffre { color: var(--orange); } .solde.epuise .chiffre { color: var(--rouge); }
+  .barres { display: flex; align-items: flex-end; gap: 3px; height: 96px; margin-top: 10px; }
+  .barres div { flex: 1; min-width: 0; background: var(--accent); border-radius: 3px 3px 0 0; opacity: .8; transition: opacity .12s; }
+  .barres div:hover { opacity: 1; } .barres div.sans { background: var(--sep); }
+  .axes { display: flex; gap: 3px; margin-top: 5px; font-size: 11px; color: var(--ter); }
+  .axes span { flex: 1; min-width: 0; text-align: center; overflow: hidden; white-space: nowrap; }
+  .repartition { display: grid; grid-template-columns: auto 1fr auto; gap: 5px 10px; align-items: center; font-size: 13px; margin-top: 6px; }
+  .repartition .jauge { height: 8px; background: var(--champ); border-radius: 4px; overflow: hidden; }
+  .repartition .jauge i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .repartition .n { color: var(--sec); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .paires { display: grid; grid-template-columns: 1fr auto; gap: 7px 14px; font-size: 13.5px; margin-top: 4px; align-items: baseline; }
+  .paires span:nth-child(2n) { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
+  .paires span small { display: block; color: var(--sec); font-size: 12px; font-weight: 400; line-height: 1.3; }
+  .paires .total { border-top: .5px solid var(--sep); padding-top: 7px; font-weight: 600; } .paires .ok { color: var(--vert); } .paires .ko { color: var(--rouge); }
+  .champs-feuille { display: grid; grid-template-columns: 180px 1fr; gap: 10px 12px; align-items: center; margin-top: 4px; }
+  .champs-feuille label { font-weight: 500; font-size: 13.5px; }
   .filtre-h { display: inline-flex; background: var(--champ); border-radius: 8px; padding: 3px; gap: 2px; margin-right: 8px; }
   .filtre-h button { border: 0; background: transparent; padding: 4px 12px; border-radius: 6px; font: inherit; font-size: 13px; color: var(--sec); cursor: pointer; white-space: nowrap; }
   .filtre-h button.actif { background: var(--carte); color: var(--txt); box-shadow: var(--ombre); }
@@ -243,6 +274,7 @@
   <div class="segments" id="segments">
     <button class="actif" id="seg-colis" onclick="fermerReglages()"><span class="point" id="point"></span>Colis</button>
     <button id="seg-historique" onclick="ouvrirHistorique()">Historique</button>
+    <button id="seg-stats" onclick="ouvrirStats()">Statistiques</button>
     <button id="seg-reglages" onclick="ouvrirReglages(false)">Réglages</button>
   </div>
   <div class="droite">
@@ -310,6 +342,24 @@
     <div class="etat" id="etat-historique">Une étiquette réimprimée ne vaut que pour son colis d'origine. Le suivi et les PDF sont demandés à Mondial Relay sans frais.</div>
     <button class="btn principal" id="b-imprimer-lot" onclick="imprimerSelection()" disabled>Imprimer la sélection</button>
   </div>
+</section>
+
+<!-- ======== écran statistiques ======== -->
+<section class="ecran cache" id="ecran-stats">
+  <div class="entete">
+    <div>
+      <h1 id="h1-stats">Statistiques</h1>
+      <p>Étiquettes des bons Odoo des 12 derniers mois, d'où qu'elles viennent. Le poids pesé et le coût estimé ne sont connus que pour les étiquettes créées sur ce poste.</p>
+    </div>
+    <div class="actions">
+      <div class="filtre-h" id="s-periodes"><button id="sp-30" onclick="periodeStats(30)">30 jours</button><button id="sp-90" onclick="periodeStats(90)">3 mois</button><button id="sp-365" class="actif" onclick="periodeStats(365)">12 mois</button></div>
+      <button class="btn" id="b-stats-actualiser" onclick="ouvrirStats(true)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+        Actualiser <small id="maj-s" title="Heure de la dernière lecture d'Odoo"></small>
+      </button>
+    </div>
+  </div>
+  <div class="liste stats" id="stats"></div>
 </section>
 
 <!-- ======== écran des réglages ======== -->
@@ -382,7 +432,7 @@
   }
   function occuper(message) {
     etat.occupe = !!message;
-    for (const id of ["seg-colis", "seg-historique", "seg-reglages", "b-actualiser", "b-creer", "b-tester", "b-enregistrer", "b-grille", "b-rapport", "b-tarifs", "b-publique", "b-imprimer-lot"]) { const b = $("#" + id); if (b) b.disabled = etat.occupe || (id === "b-creer" && (!etat.pret || etat.lecture)) || (id === "b-imprimer-lot" && !Object.keys(etat.choix || {}).length); }
+    for (const id of ["seg-colis", "seg-historique", "seg-stats", "seg-reglages", "b-actualiser", "b-creer", "b-tester", "b-enregistrer", "b-grille", "b-rapport", "b-tarifs", "b-publique", "b-imprimer-lot", "b-stats-actualiser"]) { const b = $("#" + id); if (b) b.disabled = etat.occupe || (id === "b-creer" && (!etat.pret || etat.lecture)) || (id === "b-imprimer-lot" && !Object.keys(etat.choix || {}).length); }
     $("#etat").innerHTML = message ? `<span class="rouage"></span>${h(message)}` : "";
     $("#etat-reglages").innerHTML = message ? `<span class="rouage"></span>${h(message)}` : "";
     if (!message) majEtat();
@@ -414,8 +464,8 @@
     await actualiser();
   }
   function pastille(classe, texte) { const p = $("#pastille"); p.className = "pastille " + classe; p.textContent = texte; $("#point").className = "point " + classe; }
-  function segment(nom) { for (const n of ["colis", "historique", "reglages"]) $("#seg-" + n).classList.toggle("actif", nom === n); }
-  function montrerEcran(nom) { for (const n of ["colis", "historique", "reglages", "tarifs"]) $("#ecran-" + n).classList.toggle("cache", nom !== n); segment(nom === "tarifs" ? "reglages" : nom); }
+  function segment(nom) { for (const n of ["colis", "historique", "stats", "reglages"]) $("#seg-" + n).classList.toggle("actif", nom === n); }
+  function montrerEcran(nom) { for (const n of ["colis", "historique", "stats", "reglages", "tarifs"]) $("#ecran-" + n).classList.toggle("cache", nom !== n); segment(nom === "tarifs" ? "reglages" : nom); }
   const euros = (x) => x.toFixed(2).replace(".", ",") + " €";
 
   // ---------- grille tarifaire (facultative) ----------
@@ -725,6 +775,154 @@
   function ouvrirChemin(i) { api("ouvrir_fichier", etat.chemins[i]); }
   function ouvrirSortie() { if (etat.hist && etat.hist.sortie) api("ouvrir_fichier", etat.hist.sortie); }
 
+  // ---------- statistiques ----------
+  const PERIODES = { 30: "30 derniers jours", 90: "3 derniers mois", 365: "12 derniers mois" };
+  const PAYS_NOMS = { FR: "France", BE: "Belgique", LU: "Luxembourg", NL: "Pays-Bas", ES: "Espagne", PT: "Portugal", DE: "Allemagne", "?": "non renseigné" };
+  const nombre = (x, dec = 0) => x.toLocaleString("fr-FR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  const pluriel = (n, un, des) => `${nombre(n)} ${n > 1 ? (des || un + "s") : un}`;
+  const dateJour = (d) => String(d || "").slice(0, 10);  // « AAAA-MM-JJ » d'une date « AAAA-MM-JJ HH:MM:SS »
+  const dateFr = (j) => new Date(j + "T00:00").toLocaleDateString("fr-FR");
+  const kg = (g) => g >= 1000 ? `${nombre(g / 1000, g % 1000 ? 1 : 0)} kg` : `${nombre(g)} g`;
+  const eurosG = (x) => (x < 0 ? "− " : "") + nombre(Math.abs(x), 2) + " €";  // « 6 767,40 € », signe moins typographique
+  const dureeTexte = (j) => j < 1 ? "moins d'un jour" : j < 14 ? pluriel(Math.round(j), "jour") : j < 60 ? pluriel(Math.round(j / 7), "semaine") : pluriel(Math.round(j / 30), "mois", "mois");
+  async function ouvrirStats(force) {
+    // comme l'Historique : lu une fois par session, « Actualiser » (force) relit Odoo et le dossier « sortie »
+    await pret();
+    if (etat.installation) return;
+    montrerEcran("stats");
+    if (etat.stats && !force) { rendreStats(); return; }
+    $("#stats").innerHTML = `<div class="vide">Lecture d'Odoo et du dossier « sortie »…</div>`;
+    etat.stats = await api("statistiques");
+    etat.statsMaj = new Date();
+    rendreStats();
+  }
+  function periodeStats(jours) {
+    etat.statsPeriode = jours;
+    for (const j of Object.keys(PERIODES)) $("#sp-" + j).classList.toggle("actif", +j === jours);
+    if (etat.stats) rendreStats();
+  }
+  function calculerStats(jours) {
+    const auj = new Date(); auj.setHours(0, 0, 0, 0);
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    let debut;
+    if (jours >= 365) debut = new Date(auj.getFullYear(), auj.getMonth() - 11, 1);  // 12 mois civils
+    else { debut = new Date(auj); debut.setDate(debut.getDate() - jours + 1); if (jours > 31) debut.setDate(debut.getDate() - ((debut.getDay() + 6) % 7)); }  // semaines entières, du lundi
+    const depuis = iso(debut);
+    const lignes = (etat.stats.lignes || []).filter((l) => dateJour(l.date) >= depuis);
+    const refus = (etat.stats.refus || []).filter((r) => dateJour(r.date) >= depuis).length;
+    const parJour = {};
+    for (const l of lignes) parJour[dateJour(l.date)] = (parJour[dateJour(l.date)] || 0) + 1;
+    const pointe = Object.entries(parJour).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+    // une barre par jour, par semaine ou par mois selon la période
+    const barres = [];
+    if (jours <= 31) for (let i = 0; i < jours; i++) { const d = new Date(debut); d.setDate(d.getDate() + i); barres.push({ de: iso(d), a: iso(d), titre: d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }), label: i === 0 || d.getDay() === 1 ? String(d.getDate()) : "" }); }
+    else if (jours < 365) for (let d = new Date(debut); d <= auj; d.setDate(d.getDate() + 7)) { const fin = new Date(d); fin.setDate(fin.getDate() + 6); barres.push({ de: iso(d), a: iso(fin), titre: `semaine du ${d.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`, label: d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) }); }
+    else for (let i = 0; i < 12; i++) { const d = new Date(debut.getFullYear(), debut.getMonth() + i, 1), fin = new Date(d.getFullYear(), d.getMonth() + 1, 0); barres.push({ de: iso(d), a: iso(fin), titre: d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }), label: d.toLocaleDateString("fr-FR", { month: "short" }) }); }
+    for (const b of barres) b.n = Object.entries(parJour).reduce((t, [j, n]) => t + (j >= b.de && j <= b.a ? n : 0), 0);
+    const pays = {};
+    for (const l of lignes) { const p = l.pays || "?"; pays[p] = (pays[p] || 0) + 1; }
+    const peses = lignes.filter((l) => l.poids_g > 0), tranches = etat.stats.tranches || [];
+    const poids = tranches.map((max, i) => ({ label: i ? `${kg(tranches[i - 1])} à ${kg(max)}` : `jusqu'à ${kg(max)}`, n: peses.filter((l) => l.poids_g <= max && l.poids_g > (tranches[i - 1] || 0)).length }));
+    const lourds = tranches.length ? peses.filter((l) => l.poids_g > tranches[tranches.length - 1]).length : peses.length;
+    if (lourds) poids.push({ label: tranches.length ? `plus de ${kg(tranches[tranches.length - 1])}` : "poids pesé", n: lourds });
+    const poidsMoyen = peses.length ? peses.reduce((t, l) => t + l.poids_g, 0) / peses.length : null;
+    const postes = lignes.filter((l) => l.ce_poste), couts = postes.filter((l) => l.prix != null);
+    const cout = couts.reduce((t, l) => t + l.prix, 0);
+    const factures = lignes.filter((l) => l.facture_ht != null), offertes = factures.filter((l) => l.facture_ttc === 0);
+    const deux = couts.filter((l) => l.facture_ht != null);
+    return { depuis: debut, lignes, refus, joursActifs: Object.keys(parJour).length, pointe, barres, pays, peses: peses.length, poids, poidsMoyen,
+             couts: couts.length, sansCout: postes.length - couts.length, cout, factures: factures.length,
+             factureHT: factures.reduce((t, l) => t + l.facture_ht, 0), factureTTC: factures.reduce((t, l) => t + (l.facture_ttc || 0), 0),
+             offertes: offertes.length, coutOffertes: offertes.filter((l) => l.prix != null).reduce((t, l) => t + l.prix, 0),
+             deux: deux.length, ecart: deux.reduce((t, l) => t + l.facture_ht - l.prix, 0) };
+  }
+  function calculerSolde() {
+    // montant rechargé − coût estimé des étiquettes créées sur ce poste depuis la recharge ; rythme = coût des 30 derniers jours
+    const p = etat.stats.prepaye;
+    if (!p) return null;
+    const lignes = (etat.stats.lignes || []).filter((l) => l.ce_poste && dateJour(l.date) >= p.date), connus = lignes.filter((l) => l.prix != null);
+    const depense = connus.reduce((t, l) => t + l.prix, 0), solde = p.montant - depense;
+    const il30 = new Date(); il30.setDate(il30.getDate() - 30);
+    const depuisRecharge = new Date(p.date + "T00:00"), fenetre = depuisRecharge > il30 ? depuisRecharge : il30;
+    const joursFenetre = Math.max(1, Math.round((Date.now() - fenetre.getTime()) / 86400000));
+    const parJour = connus.filter((l) => new Date(l.date.replace(" ", "T")) >= fenetre).reduce((t, l) => t + l.prix, 0) / joursFenetre;
+    return { ...p, n: lignes.length, sansCout: lignes.length - connus.length, depense, solde, joursRestants: parJour > 0 ? solde / parJour : null };
+  }
+  function repartition(items, total) {
+    return total ? `<div class="repartition">${items.map((i) => `<span>${h(i.label)}</span><span class="jauge"><i style="width:${Math.round(100 * i.n / total)}%"></i></span><span class="n">${nombre(i.n)} · ${Math.round(100 * i.n / total)} %</span>`).join("")}</div>` : "";
+  }
+  function majStats() {
+    const d = etat.statsMaj;
+    $("#maj-s").textContent = d ? d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "";
+  }
+  function rendreStats() {
+    const jours = etat.statsPeriode || 365, s = calculerStats(jours), solde = calculerSolde(), max = Math.max(1, ...s.barres.map((b) => b.n));
+    const depuisTexte = s.depuis.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+    const pointe = s.pointe ? `pointe à <b>${nombre(s.pointe[1])}</b> le ${new Date(s.pointe[0] + "T00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}` : "";
+    const paysItems = Object.entries(s.pays).sort((a, b) => b[1] - a[1]).map(([c, n]) => ({ label: PAYS_NOMS[c] || c, n }));
+    const classeSolde = solde ? (solde.solde <= 0 ? " epuise" : solde.solde < 50 ? " bas" : "") : "";
+    $("#stats").innerHTML = `
+      <div class="tuiles">
+        <div class="carte tuile l4" id="s-volume">
+          <h3>Étiquettes · ${PERIODES[jours]}</h3>
+          <div class="chiffre">${nombre(s.lignes.length)}${s.joursActifs ? `<small>≈ ${nombre(s.lignes.length / s.joursActifs, 1)} par jour d'expédition</small>` : ""}</div>
+          <div class="sous">${s.lignes.length ? `Depuis le ${depuisTexte} : ${pluriel(s.joursActifs, "jour")} avec expédition${pointe ? ", " + pointe : ""}${s.refus ? `, ${pluriel(s.refus, "refus", "refus")} Mondial Relay sur ce poste` : ""}.` : `Aucune étiquette depuis le ${depuisTexte}.`}</div>
+          <div class="barres">${s.barres.map((b) => `<div class="${b.n ? "" : "sans"}" style="height:${b.n ? Math.max(4, Math.round(100 * b.n / max)) : 2}%" title="${h(pluriel(b.n, "étiquette"))} · ${h(b.titre)}"></div>`).join("")}</div>
+          <div class="axes">${s.barres.map((b) => `<span>${h(b.label)}</span>`).join("")}</div>
+        </div>
+        <div class="carte tuile l2 solde${classeSolde}" id="s-solde">
+          <h3>Compte prépayé Mondial Relay · estimation</h3>
+          ${solde ? `<div class="chiffre"><span class="n">≈ ${eurosG(solde.solde)}</span><small>restants</small></div>
+          <div class="sous">Recharge de <b>${eurosG(solde.montant)}</b> le ${dateFr(solde.date)}. Depuis : ${pluriel(solde.n, "étiquette")} sur ce poste, coût estimé <b>${eurosG(solde.depense)} HT</b>${solde.sansCout ? ` (${solde.sansCout} sans coût connu)` : ""}.${solde.joursRestants != null && solde.solde > 0 ? ` Au rythme des 30 derniers jours, il en reste pour <b>≈ ${dureeTexte(solde.joursRestants)}</b>.` : ""} Le vrai solde est sur mondialrelay.fr.</div>`
+          : `<div class="chiffre">—</div><div class="sous">Indiquez votre dernière recharge sur mondialrelay.fr : l'outil en retire le coût estimé de chaque étiquette créée sur ce poste, et prévient quand le solde baisse.</div>`}
+          ${etat.stats.grille ? "" : `<div class="sous">Sans grille tarifaire, aucun coût n'est estimé : Réglages › Grille tarifaire.</div>`}
+          <div class="boutons-tuile"><button class="btn texte" id="b-prepaye" onclick="demanderPrepaye()">${solde ? "Modifier la recharge…" : "Indiquer une recharge…"}</button></div>
+        </div>
+        <div class="carte tuile l2" id="s-cout">
+          <h3>Coût et facturé · ${PERIODES[jours]}</h3>
+          <div class="paires">
+            <span>Coût estimé HT<small>${pluriel(s.couts, "étiquette")} de ce poste${s.sansCout ? `, ${s.sansCout} sans coût connu` : ""}</small></span><span>${s.couts ? eurosG(s.cout) : "—"}</span>
+            <span>Facturé aux clients HT<small>${pluriel(s.factures, "commande")}${s.offertes ? `, dont ${pluriel(s.offertes, "livraison")} offerte${s.offertes > 1 ? "s" : ""}` : ""}</small></span><span>${s.factures ? eurosG(s.factureHT) : "—"}</span>
+            <span class="total">Écart<small>sur ${pluriel(s.deux, "étiquette")} où les deux sont connus</small></span><span class="total${s.deux ? (s.ecart >= 0 ? " ok" : " ko") : ""}">${s.deux ? (s.ecart >= 0 ? "+ " : "") + eurosG(s.ecart) : "—"}</span>
+          </div>
+          <div class="sous">${s.factures ? `Facturé TTC : ${eurosG(s.factureTTC)}. ` : ""}${s.coutOffertes ? `Les livraisons offertes ont coûté ≈ ${eurosG(s.coutOffertes)} HT. ` : ""}Coût d'après la grille tarifaire, jamais un prix garanti.</div>
+        </div>
+        <div class="carte tuile l2" id="s-poids">
+          <h3>Poids pesé · ${pluriel(s.peses, "étiquette")} de ce poste</h3>
+          <div class="chiffre">${s.poidsMoyen != null ? `${kg(Math.round(s.poidsMoyen))}<small>en moyenne</small>` : "—"}</div>
+          ${s.peses ? repartition(s.poids.filter((p) => p.n), s.peses) : `<div class="sous">Aucune pesée sur ce poste sur la période.</div>`}
+        </div>
+        <div class="carte tuile l2" id="s-pays">
+          <h3>Pays du point relais</h3>
+          ${s.lignes.length ? repartition(paysItems, s.lignes.length) : `<div class="chiffre">—</div>`}
+        </div>
+      </div>
+      ${etat.stats.odoo ? "" : `<div class="info-h">Odoo non interrogé (${h(etat.stats.erreur || "non connecté")}) : seules les créations de ce poste sont comptées.</div>`}`;
+    majStats();
+  }
+  function demanderPrepaye() {
+    const p = etat.stats && etat.stats.prepaye;
+    feuille(`
+      <h2>Recharge du compte prépayé</h2>
+      <p>Montant hors taxes de la dernière recharge, tel qu'il apparaît sur mondialrelay.fr, et sa date. L'outil en retire le coût estimé de chaque étiquette créée sur ce poste depuis cette date : c'est une estimation, le vrai solde reste sur mondialrelay.fr.</p>
+      <div class="champs-feuille">
+        <label for="p-montant">Montant rechargé (HT)</label><input class="entree" id="p-montant" placeholder="ex. 500" inputmode="decimal" autocomplete="off" value="${p ? p.montant.toFixed(2).replace(".", ",") : ""}">
+        <label for="p-date">Date de la recharge</label><input class="entree" type="date" id="p-date" value="${p ? h(p.date) : ""}">
+      </div>
+      <div class="erreur" id="p-erreur"></div>
+      <div class="boutons">${p ? `<button class="btn texte" onclick="enregistrerPrepaye(true)">Ne plus suivre</button>` : ""}<button class="btn" onclick="fermerFeuille()">Annuler</button><button class="btn principal" onclick="enregistrerPrepaye()">Enregistrer</button></div>`);
+    const inp = $("#p-montant"); inp.focus();
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") enregistrerPrepaye(); });
+  }
+  async function enregistrerPrepaye(oublier) {
+    const montant = oublier ? "" : $("#p-montant").value, date = oublier ? "" : $("#p-date").value;
+    if (!oublier && !date) { $("#p-erreur").textContent = "Indiquez la date de la recharge."; return; }
+    const r = await api("prepaye_enregistrer", montant, date);
+    if (!r.ok) { $("#p-erreur").textContent = r.erreur; return; }
+    fermerFeuille();
+    if (etat.stats) { etat.stats.prepaye = r.prepaye; rendreStats(); }
+  }
+
   // ---------- liste ----------
   async function actualiser() {
     if (!etat.pret) { await connecter(); return; }
@@ -823,7 +1021,7 @@
     occuper("");
     if (!r.ok) { erreur(r.erreur); return; }
     for (const f of r.faits) { delete etat.poids[f.bon]; }
-    if (r.faits.length) etat.hist = null;
+    if (r.faits.length) { etat.hist = null; etat.stats = null; }
     const partis = new Set(r.faits.map((f) => f.bon).concat(r.echecs.filter((e) => e.deja).map((e) => e.bon)));
     if (partis.size) { etat.prets = etat.prets.filter((l) => !partis.has(l.bon)); afficher(); }
     const lignes = r.faits.map((f) => `<div><b>${h(f.commande)}</b><span>${h(f.client)}</span><span class="ok" style="text-align:right">${h(f.n_colis)}</span></div>`)

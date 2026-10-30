@@ -4,6 +4,7 @@ Lancé par « Etiquettes - mode demo.bat » (etiquettes_app.pyw --demo). Ce fich
 il remplace seulement, le temps de la démo, les fonctions réseau de etiquettes_du_jour.py et de reglages.pyw.
 Tout ce que la démo écrit va dans le sous-dossier « demo » (réglages fictifs, PDF de simulation).
 """
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import etiquettes_du_jour as mr
@@ -37,13 +38,16 @@ class FauxOdoo:
     db = "demo"
 
     def __call__(self, model, meth, *a, **k):
-        if model == "stock.picking" and meth == "search_read" and a[0] and a[0][0][0] == "carrier_id.is_mondialrelay":  # historique : bons étiquetés
+        if model == "stock.picking" and meth == "search_read" and a[0] and a[0][0][0] == "carrier_id.is_mondialrelay":  # historique, statistiques : bons étiquetés
+            avant_hier = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%d 08:30:00")
             return [{"id": b["id"], "name": b["name"], "origin": b["origin"], "partner_id": b["partner_id"], "carrier_tracking_ref": b["carrier_tracking_ref"],
-                     "date_done": "2026-10-23 08:30:00"} for b in etat["bons"] if b["carrier_tracking_ref"]]
+                     "date_done": avant_hier, "sale_id": [b["id"], b["origin"]]} for b in etat["bons"] if b["carrier_tracking_ref"]]
         if model == "stock.picking" and meth == "read":  # relecture avant création : le n° déjà écrit ?
             return [{"id": b["id"], "carrier_tracking_ref": b["carrier_tracking_ref"]} for b in etat["bons"] if b["id"] in a[0]]
         if model == "res.partner" and meth == "read":
-            return [{"id": i, "name": next((b["client"] for b in etat["bons"] if b["id"] == i), ""), "parent_id": False} for i in a[0]]
+            return [{"id": i, "name": next((b["client"] for b in etat["bons"] if b["id"] == i), ""), "parent_id": False, "country_id": [1, "France"]} for i in a[0]]
+        if model == "res.country" and meth == "read":
+            return [{"id": 1, "code": "FR"}]
         if model == "stock.picking" and meth == "search_read":  # commande liée à chaque bon (même n° que le bon, pour la démo)
             ids = a[0][0][2]
             return [{"id": b["id"], "name": b["name"], "sale_id": [b["id"], b["origin"]]} for b in etat["bons"] if b["id"] in ids]

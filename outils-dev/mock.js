@@ -28,6 +28,26 @@ window.pywebview = { api: {
   suivi: (num) => P(num === "12345601" ? { ok: true, etat: "Livré", detail: "Colis livré le 24/10/26 à 11:02" } : { ok: true, etat: "En cours d'acheminement", detail: "Prise en charge point relais le 23/10/26 à 15:10, Villeneuve" }),
   etiquette_pdf: () => P({ ok: true, chemin: "x", local: true }),
   etiquettes_lot: (l) => P({ ok: true, chemin: "C:\\EtiquettesMR\\sortie\\recuperees\\selection-20261029-141500.pdf", n: l.length, echecs: [] }),
+  statistiques: () => {  // un an inventé, reproductible : plus d'activité en fin d'année, ce poste depuis 200 jours
+    const L = [], R = []; let g = 7; const rnd = () => (g = (g * 48271) % 2147483647) / 2147483647;
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const auj = new Date();
+    for (let i = 340; i >= 0; i--) {
+      const d = new Date(auj); d.setDate(d.getDate() - i);
+      if (d.getDay() === 0) continue;
+      const n = d.getDay() === 6 ? Math.floor(rnd() * 3) : 1 + Math.floor(rnd() * (4 + 6 * (1 - i / 340)));
+      for (let k = 0; k < n; k++) {
+        const poste = i < 200, gr = [300, 700, 1500, 3000, 6000, 12000][Math.floor(rnd() * 6)], pays = rnd() < 0.93 ? "FR" : rnd() < 0.6 ? "BE" : "ES", offerte = rnd() < 0.08;
+        const prix = { 300: 5.5, 700: 6.3, 1500: 6.3, 3000: 8.5, 6000: 12.2, 12000: 16.9 }[gr] * (pays === "FR" ? 1 : 1.6);
+        L.push({ date: `${iso(d)} ${String(8 + Math.floor(rnd() * 9)).padStart(2, "0")}:${String(Math.floor(rnd() * 60)).padStart(2, "0")}:00`, pays, poids_g: poste ? gr + Math.floor(rnd() * 100) : null,
+                 prix: poste ? Math.round(prix * 100) / 100 : null, facture_ht: offerte ? 0 : 5.33, facture_ttc: offerte ? 0 : 6.4, ce_poste: poste });
+      }
+      if (rnd() < 0.04) R.push({ date: iso(d) + " 10:00:00", motif: "Mondial Relay STAT 14 n° de point relais invalide" });
+    }
+    const recharge = new Date(auj); recharge.setDate(recharge.getDate() - 40);
+    return P({ lignes: L, refus: R, jours: 365, odoo: true, erreur: "", tranches: [500, 1000, 2000, 4000, 10000, 20000, 25000, 30000], grille: true, prepaye: { montant: 500, date: iso(recharge) } });
+  },
+  prepaye_enregistrer: (m, d) => P({ ok: true, prepaye: m ? { montant: parseFloat(String(m).replace(",", ".")), date: d } : null }),
 }};
 window.addEventListener("load", async () => {
   await new Promise((r) => setTimeout(r, 300));
@@ -42,6 +62,9 @@ window.addEventListener("load", async () => {
   if (sc === "historique") { await ouvrirHistorique(); }
   if (sc === "historique-selection") { await ouvrirHistorique(); choisir("12345678"); choisir("12345601"); }
   if (sc === "historique-recherche") { await ouvrirHistorique(); const c = document.querySelector("#h-recherche"); c.value = "dupont"; rechercherHistorique("dupont"); c.focus(); }
+  if (sc === "stats") { await ouvrirStats(); }
+  if (sc === "stats-30") { await ouvrirStats(); periodeStats(30); }
+  if (sc === "stats-recharge") { await ouvrirStats(); demanderPrepaye(); document.activeElement.blur(); }
   if (sc === "tarifs") { await ouvrirTarifs(); document.querySelector("#t-palier").value = "1"; document.activeElement.blur(); }
   if (sc === "reglages-points") { await ouvrirReglages(false); await new Promise((r) => setTimeout(r, 200)); voir("r-ODOO_API_KEY", document.querySelector("#r-ODOO_API_KEY").nextElementSibling); document.activeElement.blur(); }
   if (sc === "reglages-aide") { await ouvrirReglages(false); await new Promise((r) => setTimeout(r, 200)); document.getElementById("r-ODOO_API_KEY").focus(); }

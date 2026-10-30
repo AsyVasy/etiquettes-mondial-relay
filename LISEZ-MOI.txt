@@ -28,6 +28,9 @@ Chaque jour
   Cochez plusieurs lignes puis « Imprimer la sélection » : un seul PDF avec toutes ces étiquettes s'ouvre.
   « Dossier » ouvre le dossier « sortie » dans l'Explorateur. La liste est lue une fois par session,
   « Actualiser » la relit ; les suivis des colis livrés sont gardés dans suivis.json à côté des réglages.
+- L'écran Statistiques compte les étiquettes des 12 derniers mois (Odoo), avec le coût estimé (grille tarifaire)
+  et le facturé aux clients. « Indiquer une recharge » donne une estimation du solde prépayé d'après les
+  étiquettes créées sur ce poste (le vrai solde est sur mondialrelay.fr) ; gardée dans prepaye.json.
 - En cas de problème : Réglages > « Rapport pour l'administrateur » crée un PDF dans « sortie »,
   sans clé ni nom de client, à joindre à votre message. Le fichier journal.log garde les derniers événements.
 - Un réglage à changer (clé expirée, imprimante) : « Réglages » en haut de la fenêtre.

@@ -32,7 +32,7 @@ GRILLE_PUBLIQUE = {
     "DE": [5.82, 7.52, 8.62, 11.82, 16.83, 25.77, None, None],
 }
 TITRE = "Étiquettes Mondial Relay"
-VERSION = "2026-10-29"
+VERSION = "2026-10-30"
 JOURNAL_LIGNES = 400  # lignes gardées dans journal.log
 
 
@@ -236,13 +236,19 @@ class Api:
         if getattr(self, "_sans_ventes", False) or not bons:
             return {}
         try:
-            o = self._c["o"]
-            picks = o("stock.picking", "search_read", [["id", "in", [b["id"] for b in bons]]], fields=["name", "sale_id"])
-            commande = {p["sale_id"][0]: p["name"] for p in picks if p.get("sale_id")}
-            if not commande:
-                return {}
-            lignes = o("sale.order.line", "search_read", [["order_id", "in", list(commande)], ["is_delivery", "=", True]],
-                       fields=["order_id", "price_subtotal", "price_total"])
+            picks = self._c["o"]("stock.picking", "search_read", [["id", "in", [b["id"] for b in bons]]], fields=["name", "sale_id"])
+        except Exception:
+            self._sans_ventes = True  # pas le droit de lire les ventes : on n'affiche rien, sans gêner le reste
+            return {}
+        return self._frais_commandes({p["sale_id"][0]: p["name"] for p in picks if p.get("sale_id")})
+
+    def _frais_commandes(self, commande):
+        """{n° de bon: {"ht", "ttc"}} pour {id de commande: n° de bon} : somme des lignes « livraison » de chaque commande."""
+        if getattr(self, "_sans_ventes", False) or not commande:
+            return {}
+        try:
+            lignes = self._c["o"]("sale.order.line", "search_read", [["order_id", "in", list(commande)], ["is_delivery", "=", True]],
+                                  fields=["order_id", "price_subtotal", "price_total"])
             frais = {}
             for l in lignes:
                 bon = commande.get(l["order_id"][0])
@@ -251,7 +257,7 @@ class Api:
                     f["ht"] += l["price_subtotal"]; f["ttc"] += l["price_total"]
             return frais
         except Exception:
-            self._sans_ventes = True  # pas le droit de lire les ventes : on n'affiche rien, sans gêner le reste
+            self._sans_ventes = True
             return {}
 
     def _ligne(self, bon):
@@ -385,7 +391,7 @@ class Api:
                             comp = complement.get(bon, {})
                             lignes[bon] = {"date": date, "commande": r.get("commande", ""), "bon": bon, "client": r.get("client", ""),
                                            "relais": r.get("relais", ""), "n_colis": r.get("n_colis", ""), "poids_g": r.get("poids_g", ""),
-                                           "prix": comp.get("prix"), "facture_ttc": comp.get("facture_ttc"), "ce_poste": True,
+                                           "prix": comp.get("prix"), "facture_ttc": comp.get("facture_ttc"), "pays": comp.get("pays"), "ce_poste": True,
                                            "fichier": str(fichier) if fichier.exists() else None, "dossier": str(d),
                                            "pdf_global": str(pdf) if pdf.exists() else None}
         return lignes, refus
@@ -436,6 +442,98 @@ class Api:
         tri = sorted(lignes.values(), key=lambda l: l["date"], reverse=True)
         return {"lignes": tri, "refus": sorted(refus, key=lambda r: r["date"], reverse=True), "jours": self.HISTORIQUE_JOURS,
                 "odoo": bool(odoo) or (self._c is not None and not erreur), "erreur": erreur, "sortie": str(Path(self._a.sortie).resolve())}
+
+    # --- statistiques : 12 mois d'Odoo (volume, pays, facturé) enrichis par ce poste (poids pesé, coût estimé) ; sans nom de client ni n° de colis ---
+    STATS_JOURS = 365
+
+    def _stats_odoo(self):
+        """Bons Mondial Relay étiquetés depuis STATS_JOURS jours : {bon: {date, pays du relais, facturé HT et TTC}}."""
+        o = self._c["o"]
+        depuis = (datetime.now(timezone.utc) - timedelta(days=self.STATS_JOURS)).strftime("%Y-%m-%d %H:%M:%S")
+        picks = o("stock.picking", "search_read", [["carrier_id.is_mondialrelay", "=", True], ["carrier_tracking_ref", "!=", False], ["date_done", ">=", depuis]],
+                  fields=["name", "partner_id", "date_done", "sale_id"], order="date_done desc", limit=5000)
+        pays = {}
+        try:  # pays de l'adresse de livraison du bon (le point relais) ; facultatif
+            ids = sorted({p["partner_id"][0] for p in picks if p.get("partner_id")})
+            parts = o("res.partner", "read", ids, fields=["country_id"]) if ids else []
+            cids = sorted({r["country_id"][0] for r in parts if r.get("country_id")})
+            codes = {c["id"]: c["code"] for c in o("res.country", "read", cids, fields=["code"])} if cids else {}
+            pays = {r["id"]: codes.get(r["country_id"][0]) for r in parts if r.get("country_id")}
+        except Exception as e:
+            self._j(f"statistiques : pays illisibles, {texte_erreur(e)}")
+        frais = self._frais_commandes({p["sale_id"][0]: p["name"] for p in picks if p.get("sale_id")})
+        lignes = {}
+        for p in picks:
+            try:  # Odoo donne l'heure en UTC
+                date = datetime.strptime(p["date_done"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+            except (TypeError, ValueError):
+                date = p.get("date_done") or ""
+            f = frais.get(p["name"])
+            lignes[p["name"]] = {"date": date, "pays": pays.get(p["partner_id"][0]) if p.get("partner_id") else None,
+                                 "facture_ht": f["ht"] if f else None, "facture_ttc": f["ttc"] if f else None}
+        return lignes
+
+    def statistiques(self):
+        """Une ligne par étiquette des 12 derniers mois : Odoo (date, pays, facturé) enrichi par ce poste (poids pesé, coût estimé)."""
+        locales, refus = self._creations_locales()
+        odoo, erreur = {}, ""
+        if self._c:
+            try:
+                odoo = self._stats_odoo()
+            except BaseException as e:
+                erreur = texte_erreur(e); self._j(f"statistiques : Odoo illisible, {erreur}")
+        else:
+            erreur = "non connecté à Odoo"
+        limite = (datetime.now() - timedelta(days=self.STATS_JOURS)).strftime("%Y-%m-%d")
+        lignes = {bon: {**l, "poids_g": None, "prix": None, "ce_poste": False} for bon, l in odoo.items()}
+        for bon, l in locales.items():
+            if l["date"] < limite:
+                continue
+            e = lignes.setdefault(bon, {"date": l["date"], "pays": None, "facture_ht": None, "facture_ttc": l["facture_ttc"]})
+            try:
+                poids = int(l["poids_g"])
+            except (TypeError, ValueError):
+                poids = None
+            e.update({"poids_g": poids, "prix": l["prix"], "ce_poste": True, "pays": l.get("pays") or e.get("pays")})
+        grille = self.tarifs_lire()
+        return {"lignes": sorted(lignes.values(), key=lambda l: l["date"]),
+                "refus": [{"date": r["date"], "motif": r["motif"]} for r in refus if r["date"] >= limite],
+                "jours": self.STATS_JOURS, "odoo": bool(odoo) or (self._c is not None and not erreur), "erreur": erreur,
+                "tranches": grille["tranches"], "grille": any(v is not None for p in grille["pays"].values() for v in p),
+                "prepaye": self.prepaye_lire()}
+
+    # dernière recharge du compte prépayé, saisie par l'utilisateur : le solde affiché est une estimation (montant − coût estimé des créations de ce poste)
+    def _prepaye_chemin(self):
+        return Path(self._a.odoo).parent / "prepaye.json"  # à côté des réglages, comme suivis.json
+
+    def prepaye_lire(self):
+        try:
+            d = json.loads(self._prepaye_chemin().read_text(encoding="utf-8"))
+            return {"montant": float(d["montant"]), "date": datetime.strptime(d["date"], "%Y-%m-%d").date().isoformat()}
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
+    def prepaye_enregistrer(self, montant, date):
+        """Montant HT et date (AAAA-MM-JJ) de la dernière recharge ; montant vide = ne plus suivre le solde."""
+        try:
+            m = "".join(str(montant or "").replace(",", ".").replace("€", "").split())
+            if not m:
+                self._prepaye_chemin().unlink(missing_ok=True)
+                self._j("compte prépayé : suivi du solde arrêté")
+                return {"ok": True, "prepaye": None}
+            valeur = round(float(m), 2)
+            if not 0 < valeur <= 100000:
+                raise ValueError("montant hors limites")
+            jour = datetime.strptime(str(date or "").strip(), "%Y-%m-%d").date()
+            if jour > datetime.now().date():
+                return {"ok": False, "erreur": "La date de la recharge ne peut pas être dans le futur."}
+            self._prepaye_chemin().write_text(json.dumps({"montant": valeur, "date": jour.isoformat()}), encoding="utf-8")
+            self._j(f"compte prépayé : recharge de {valeur:.2f} € HT le {jour.isoformat()}")
+            return {"ok": True, "prepaye": {"montant": valeur, "date": jour.isoformat()}}
+        except ValueError:
+            return {"ok": False, "erreur": "Il faut un montant en euros (ex. 500 ou 250,50) et une date."}
+        except OSError as e:
+            return {"ok": False, "erreur": f"Recharge non enregistrée : {texte_erreur(e)}"}
 
     # cache des suivis, à côté des réglages : un colis « Livré » n'est plus jamais redemandé, les autres le sont après SUIVI_FRAIS secondes
     SUIVI_FRAIS = 600

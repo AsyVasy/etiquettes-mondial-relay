@@ -1,8 +1,8 @@
 """Rend un écran de interface.html en PNG avec Edge sans fenêtre, sur un faux pont pywebview (mock.js).
 
 Usage : py -3 rendu_maquette.py <scenario> [sortie.png] [largeurxhauteur, ex. 900x620]
-Scénarios (voir mock.js) : colis, colis-survol, colis-decoche, confirmation, historique, reglages, reglages-aide,
-reglages-echec, reglages-points, tarifs.
+Scénarios (voir mock.js) : colis, colis-survol, colis-decoche, confirmation, historique, historique-recherche,
+historique-selection, stats, stats-30, stats-recharge, reglages, reglages-aide, reglages-echec, reglages-points, tarifs.
 Sert à vérifier l'interface sans ouvrir de fenêtre à l'écran (utile quand une application plein écran tourne).
 """
 import subprocess, sys, tempfile
