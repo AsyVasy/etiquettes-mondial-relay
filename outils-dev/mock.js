@@ -44,10 +44,11 @@ window.pywebview = { api: {
       }
       if (rnd() < 0.04) R.push({ date: iso(d) + " 10:00:00", motif: "Mondial Relay STAT 14 n° de point relais invalide" });
     }
-    const recharge = new Date(auj); recharge.setDate(recharge.getDate() - 40);
-    return P({ lignes: L, refus: R, jours: 365, odoo: true, erreur: "", tranches: [500, 1000, 2000, 4000, 10000, 20000, 25000, 30000], grille: true, prepaye: { montant: 500, date: iso(recharge) } });
+    const releve = new Date(auj); releve.setDate(releve.getDate() - 12);
+    for (const l of L) if (l.ce_poste) l.cree = l.date;
+    return P({ lignes: L, refus: R, jours: 365, odoo: true, erreur: "", tranches: [500, 1000, 2000, 4000, 10000, 20000, 25000, 30000], grille: true, prepaye: { solde: 612.4, releve: iso(releve) + " 09:12:00" } });
   },
-  prepaye_enregistrer: (m, d) => P({ ok: true, prepaye: m ? { montant: parseFloat(String(m).replace(",", ".")), date: d } : null }),
+  prepaye_enregistrer: (m) => P({ ok: true, prepaye: m ? { solde: parseFloat(String(m).replace(",", ".")), releve: "2026-10-30 14:12:00" } : null }),
 }};
 window.addEventListener("load", async () => {
   await new Promise((r) => setTimeout(r, 300));

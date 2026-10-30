@@ -494,7 +494,7 @@ class Api:
                 poids = int(l["poids_g"])
             except (TypeError, ValueError):
                 poids = None
-            e.update({"poids_g": poids, "prix": l["prix"], "ce_poste": True, "pays": l.get("pays") or e.get("pays")})
+            e.update({"poids_g": poids, "prix": l["prix"], "ce_poste": True, "pays": l.get("pays") or e.get("pays"), "cree": l["date"]})
         grille = self.tarifs_lire()
         return {"lignes": sorted(lignes.values(), key=lambda l: l["date"]),
                 "refus": [{"date": r["date"], "motif": r["motif"]} for r in refus if r["date"] >= limite],
@@ -502,39 +502,37 @@ class Api:
                 "tranches": grille["tranches"], "grille": any(v is not None for p in grille["pays"].values() for v in p),
                 "prepaye": self.prepaye_lire()}
 
-    # dernière recharge du compte prépayé (TTC, comme l'historique du compte sur mondialrelay.fr), saisie par l'utilisateur :
-    # le solde affiché est une estimation (montant − coût estimé TTC des créations de ce poste, soit grille HT + 20 % de TVA)
+    # solde du compte prépayé relevé sur mondialrelay.fr (TTC), recopié par l'utilisateur ; l'outil note l'heure du relevé.
+    # Le solde affiché est une estimation : relevé − coût estimé TTC (grille HT + 20 % de TVA) des étiquettes créées sur ce poste après le relevé.
     def _prepaye_chemin(self):
         return Path(self._a.odoo).parent / "prepaye.json"  # à côté des réglages, comme suivis.json
 
     def prepaye_lire(self):
         try:
             d = json.loads(self._prepaye_chemin().read_text(encoding="utf-8"))
-            return {"montant": float(d["montant"]), "date": datetime.strptime(d["date"], "%Y-%m-%d").date().isoformat()}
+            return {"solde": float(d["solde"]), "releve": datetime.strptime(d["releve"], "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")}
         except (OSError, ValueError, KeyError, TypeError):
             return None
 
-    def prepaye_enregistrer(self, montant, date):
-        """Montant TTC et date (AAAA-MM-JJ) de la dernière recharge ; montant vide = ne plus suivre le solde."""
+    def prepaye_enregistrer(self, solde):
+        """Solde TTC lu sur mondialrelay.fr, daté de maintenant ; vide = ne plus suivre le solde."""
         try:
-            m = "".join(str(montant or "").replace(",", ".").replace("€", "").split())
+            m = "".join(str(solde or "").replace(",", ".").replace("€", "").split())
             if not m:
                 self._prepaye_chemin().unlink(missing_ok=True)
                 self._j("compte prépayé : suivi du solde arrêté")
                 return {"ok": True, "prepaye": None}
             valeur = round(float(m), 2)
-            if not 0 < valeur <= 100000:
+            if not 0 <= valeur <= 100000:
                 raise ValueError("montant hors limites")
-            jour = datetime.strptime(str(date or "").strip(), "%Y-%m-%d").date()
-            if jour > datetime.now().date():
-                return {"ok": False, "erreur": "La date de la recharge ne peut pas être dans le futur."}
-            self._prepaye_chemin().write_text(json.dumps({"montant": valeur, "date": jour.isoformat()}), encoding="utf-8")
-            self._j(f"compte prépayé : recharge de {valeur:.2f} € TTC le {jour.isoformat()}")
-            return {"ok": True, "prepaye": {"montant": valeur, "date": jour.isoformat()}}
+            releve = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self._prepaye_chemin().write_text(json.dumps({"solde": valeur, "releve": releve}), encoding="utf-8")
+            self._j(f"compte prépayé : solde relevé {valeur:.2f} € TTC")
+            return {"ok": True, "prepaye": {"solde": valeur, "releve": releve}}
         except ValueError:
-            return {"ok": False, "erreur": "Il faut un montant en euros (ex. 500 ou 250,50) et une date."}
+            return {"ok": False, "erreur": "Il faut un montant en euros, ex. 500 ou 250,50."}
         except OSError as e:
-            return {"ok": False, "erreur": f"Recharge non enregistrée : {texte_erreur(e)}"}
+            return {"ok": False, "erreur": f"Solde non enregistré : {texte_erreur(e)}"}
 
     # cache des suivis, à côté des réglages : un colis « Livré » n'est plus jamais redemandé, les autres le sont après SUIVI_FRAIS secondes
     SUIVI_FRAIS = 600
